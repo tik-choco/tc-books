@@ -46,6 +46,7 @@ import {
 } from "../lib/llmConfig";
 import { loadLocalSettings, saveLocalSettings, type BooksLocalSettings } from "../lib/llmSettings";
 import { requestOnboarding } from "../lib/onboarding";
+import { paneEnterClass, useEnterDirection } from "../hooks/useEnterDirection";
 import {
   connectNetworkConsumer,
   consumerStatus,
@@ -160,6 +161,8 @@ const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string; icon: typeof Plug
   { id: "onboarding", label: "はじめに", icon: Sparkles },
 ];
 
+const SETTINGS_TAB_ORDER: SettingsTabId[] = SETTINGS_TABS.map((tab) => tab.id);
+
 const SETTINGS_TAB_STORAGE_KEY = "tc-books:settings-tab";
 
 function loadSettingsTab(): SettingsTabId {
@@ -190,6 +193,7 @@ export function SettingsView(): JSX.Element {
     setActiveTabState(tab);
     saveSettingsTab(tab);
   }
+  const enterDir = useEnterDirection(SETTINGS_TAB_ORDER, activeTab);
 
   // 共有設定 (他タブ/他アプリの変更も subscribeLlmConfig で反映)
   const [shared, setShared] = useState<SharedLlmConfigV1>(() => loadLlmConfig() ?? emptyLlmConfig());
@@ -368,402 +372,404 @@ export function SettingsView(): JSX.Element {
           })}
         </div>
 
-        {/* ----- 帳簿 ----- */}
-        {activeTab === "books" ? (
-          <section
-            class="settings-section"
-            role="tabpanel"
-            id="settings-panel-books"
-            aria-labelledby="settings-tab-books"
-          >
-            <div class="settings-heading-row">
-              <h2 class="settings-heading">
-                <BookOpenText size={16} /> 帳簿
-              </h2>
-              <button
-                type="button"
-                class="settings-btn settings-btn-ghost"
-                onClick={() => {
-                  setCreatingBook((v) => !v);
-                  setNewBookName("");
-                  setNewBookKind("household");
-                }}
-              >
-                {creatingBook ? <X size={15} /> : <Plus size={15} />}
-                {creatingBook ? "閉じる" : "新しい帳簿を作成"}
-              </button>
-            </div>
-            <p class="settings-hint">
-              帳簿ごとに仕訳・勘定科目が独立して管理されます。ヘッダーの帳簿名からいつでも切り替えられます。
-            </p>
+        <div key={activeTab} class={paneEnterClass(enterDir)}>
+          {/* ----- 帳簿 ----- */}
+          {activeTab === "books" ? (
+            <section
+              class="settings-section"
+              role="tabpanel"
+              id="settings-panel-books"
+              aria-labelledby="settings-tab-books"
+            >
+              <div class="settings-heading-row">
+                <h2 class="settings-heading">
+                  <BookOpenText size={16} /> 帳簿
+                </h2>
+                <button
+                  type="button"
+                  class="settings-btn settings-btn-ghost"
+                  onClick={() => {
+                    setCreatingBook((v) => !v);
+                    setNewBookName("");
+                    setNewBookKind("household");
+                  }}
+                >
+                  {creatingBook ? <X size={15} /> : <Plus size={15} />}
+                  {creatingBook ? "閉じる" : "新しい帳簿を作成"}
+                </button>
+              </div>
+              <p class="settings-hint">
+                帳簿ごとに仕訳・勘定科目が独立して管理されます。ヘッダーの帳簿名からいつでも切り替えられます。
+              </p>
 
-            {creatingBook ? (
-              <form class="settings-card" onSubmit={submitCreateBook}>
-                <label class="settings-field">
-                  <span>帳簿名</span>
-                  <input
-                    value={newBookName}
-                    placeholder="例: 〇〇サークル"
-                    onInput={(e) => setNewBookName(e.currentTarget.value)}
-                    autoFocus
-                  />
-                </label>
-                <label class="settings-field">
-                  <span>種別</span>
-                  <select value={newBookKind} onChange={(e) => setNewBookKind(e.currentTarget.value as BookKind)}>
-                    {BOOK_KIND_ORDER.map((kind) => (
-                      <option key={kind} value={kind}>
-                        {BOOK_KIND_LABEL[kind]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div style="display:flex;justify-content:flex-end;">
-                  <button type="submit" class="settings-btn settings-btn-ghost" disabled={!newBookName.trim()}>
-                    <Plus size={15} /> 作成して切り替え
-                  </button>
-                </div>
-              </form>
-            ) : null}
-
-            <div class="settings-card-list">
-              {books.map((book) => (
-                <div key={book.id} class="settings-card">
-                  {editingBookId === book.id ? (
-                    <form class="settings-card-head" onSubmit={submitRenameBook}>
-                      <input
-                        class="settings-card-label"
-                        value={editingBookName}
-                        onInput={(e) => setEditingBookName(e.currentTarget.value)}
-                        autoFocus
-                      />
-                      <button
-                        type="submit"
-                        class="settings-icon-btn"
-                        title="保存"
-                        aria-label="保存"
-                        disabled={!editingBookName.trim()}
-                      >
-                        <Check size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        class="settings-icon-btn"
-                        title="キャンセル"
-                        aria-label="キャンセル"
-                        onClick={cancelRenameBook}
-                      >
-                        <X size={14} />
-                      </button>
-                    </form>
-                  ) : (
-                    <div class="settings-card-head">
-                      <span class="settings-card-label">{book.name}</span>
-                      {book.id === activeBookId ? <span class="settings-badge">使用中</span> : null}
-                      <button
-                        type="button"
-                        class="settings-icon-btn"
-                        title="名前を変更"
-                        aria-label="名前を変更"
-                        onClick={() => startRenameBook(book)}
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button
-                        type="button"
-                        class="settings-icon-btn"
-                        title={books.length <= 1 ? "最後の1冊は削除できません" : "削除"}
-                        aria-label="削除"
-                        disabled={books.length <= 1}
-                        onClick={() => handleDeleteBook(book)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  )}
-                  <div class="settings-field-hint settings-book-kind-row">
-                    <span>種別:</span>
-                    <select
-                      class="settings-book-kind-select"
-                      value={book.kind}
-                      onChange={(e) => handleChangeBookKind(book, e.currentTarget.value as BookKind)}
-                    >
+              {creatingBook ? (
+                <form class="settings-card" onSubmit={submitCreateBook}>
+                  <label class="settings-field">
+                    <span>帳簿名</span>
+                    <input
+                      value={newBookName}
+                      placeholder="例: 〇〇サークル"
+                      onInput={(e) => setNewBookName(e.currentTarget.value)}
+                      autoFocus
+                    />
+                  </label>
+                  <label class="settings-field">
+                    <span>種別</span>
+                    <select value={newBookKind} onChange={(e) => setNewBookKind(e.currentTarget.value as BookKind)}>
                       {BOOK_KIND_ORDER.map((kind) => (
                         <option key={kind} value={kind}>
                           {BOOK_KIND_LABEL[kind]}
                         </option>
                       ))}
                     </select>
-                    <span>・ 作成日: {formatBookDate(book.createdAt)}</span>
+                  </label>
+                  <div style="display:flex;justify-content:flex-end;">
+                    <button type="submit" class="settings-btn settings-btn-ghost" disabled={!newBookName.trim()}>
+                      <Plus size={15} /> 作成して切り替え
+                    </button>
                   </div>
-                </div>
-              ))}
-              {books.length === 0 ? <p class="settings-empty">帳簿がありません。</p> : null}
-            </div>
-          </section>
-        ) : null}
+                </form>
+              ) : null}
 
-        {/* ----- LLM プロバイダ / プリセット ----- */}
-        {activeTab === "llm" ? (
-          <section class="settings-section" role="tabpanel" id="settings-panel-llm" aria-labelledby="settings-tab-llm">
-            <div class="settings-heading-row">
-              <h2 class="settings-heading">
-                <Plug size={16} /> LLM プロバイダ
-              </h2>
-              <button type="button" class="settings-btn settings-btn-ghost" onClick={addProvider}>
-                <Plus size={15} /> プロバイダを追加
-              </button>
-            </div>
-            <p class="settings-hint">
-              接続先(Base URL)とAPIキー。同じオリジン上のtik-choco系アプリ間で共有される設定です。
-            </p>
-
-            <div class="settings-card-list">
-              {shared.providers.map((provider) => (
-                <div key={provider.id} class="settings-card">
-                  <label class="settings-field">
-                    <span>名前</span>
-                    <input
-                      value={provider.label}
-                      placeholder="ローカルLLM"
-                      onInput={(e) => updateProvider(provider.id, { label: e.currentTarget.value })}
-                    />
-                  </label>
-                  <label class="settings-field">
-                    <span>Base URL</span>
-                    <input
-                      value={provider.baseUrl}
-                      placeholder="http://localhost:1234/v1"
-                      onInput={(e) => updateProvider(provider.id, { baseUrl: e.currentTarget.value })}
-                    />
-                  </label>
-                  <label class="settings-field">
-                    <span>APIキー</span>
-                    <input
-                      type="password"
-                      autocomplete="off"
-                      value={provider.apiKey}
-                      placeholder="sk-..."
-                      onInput={(e) => updateProvider(provider.id, { apiKey: e.currentTarget.value })}
-                    />
-                  </label>
-                </div>
-              ))}
-              {shared.providers.length === 0 ? <p class="settings-empty">プロバイダが未設定です。</p> : null}
-            </div>
-
-            <div class="settings-heading-row">
-              <h2 class="settings-heading">
-                <Cpu size={16} /> モデルプリセット
-              </h2>
-              <button
-                type="button"
-                class="settings-btn settings-btn-ghost"
-                onClick={addPreset}
-                disabled={shared.providers.length === 0}
-              >
-                <Plus size={15} /> プリセットを追加
-              </button>
-            </div>
-            <p class="settings-hint">
-              {shared.providers.length === 0 ? "先にプロバイダを追加してください。" : "プロバイダに紐づくモデル設定。"}
-            </p>
-
-            <div class="settings-card-list">
-              {shared.presets.map((preset) => {
-                const provider = shared.providers.find((p) => p.id === preset.providerId);
-                return (
-                  <div key={preset.id} class="settings-card">
-                    <div class="settings-card-head">
-                      <input
-                        class="settings-card-label"
-                        value={preset.label}
-                        placeholder="プリセット名"
-                        onInput={(e) => updatePreset(preset.id, { label: e.currentTarget.value })}
-                      />
-                      {preset.id === shared.defaultPresetId ? <span class="settings-badge">既定</span> : null}
-                    </div>
-
-                    <label class="settings-field">
-                      <span>プロバイダ</span>
+              <div class="settings-card-list">
+                {books.map((book) => (
+                  <div key={book.id} class="settings-card">
+                    {editingBookId === book.id ? (
+                      <form class="settings-card-head" onSubmit={submitRenameBook}>
+                        <input
+                          class="settings-card-label"
+                          value={editingBookName}
+                          onInput={(e) => setEditingBookName(e.currentTarget.value)}
+                          autoFocus
+                        />
+                        <button
+                          type="submit"
+                          class="settings-icon-btn"
+                          title="保存"
+                          aria-label="保存"
+                          disabled={!editingBookName.trim()}
+                        >
+                          <Check size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          class="settings-icon-btn"
+                          title="キャンセル"
+                          aria-label="キャンセル"
+                          onClick={cancelRenameBook}
+                        >
+                          <X size={14} />
+                        </button>
+                      </form>
+                    ) : (
+                      <div class="settings-card-head">
+                        <span class="settings-card-label">{book.name}</span>
+                        {book.id === activeBookId ? <span class="settings-badge">使用中</span> : null}
+                        <button
+                          type="button"
+                          class="settings-icon-btn"
+                          title="名前を変更"
+                          aria-label="名前を変更"
+                          onClick={() => startRenameBook(book)}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          class="settings-icon-btn"
+                          title={books.length <= 1 ? "最後の1冊は削除できません" : "削除"}
+                          aria-label="削除"
+                          disabled={books.length <= 1}
+                          onClick={() => handleDeleteBook(book)}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                    <div class="settings-field-hint settings-book-kind-row">
+                      <span>種別:</span>
                       <select
-                        value={preset.providerId}
-                        onChange={(e) => updatePreset(preset.id, { providerId: e.currentTarget.value })}
+                        class="settings-book-kind-select"
+                        value={book.kind}
+                        onChange={(e) => handleChangeBookKind(book, e.currentTarget.value as BookKind)}
                       >
-                        {shared.providers.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.label || p.id}
+                        {BOOK_KIND_ORDER.map((kind) => (
+                          <option key={kind} value={kind}>
+                            {BOOK_KIND_LABEL[kind]}
                           </option>
                         ))}
                       </select>
-                    </label>
+                      <span>・ 作成日: {formatBookDate(book.createdAt)}</span>
+                    </div>
+                  </div>
+                ))}
+                {books.length === 0 ? <p class="settings-empty">帳簿がありません。</p> : null}
+              </div>
+            </section>
+          ) : null}
 
+          {/* ----- LLM プロバイダ / プリセット ----- */}
+          {activeTab === "llm" ? (
+            <section class="settings-section" role="tabpanel" id="settings-panel-llm" aria-labelledby="settings-tab-llm">
+              <div class="settings-heading-row">
+                <h2 class="settings-heading">
+                  <Plug size={16} /> LLM プロバイダ
+                </h2>
+                <button type="button" class="settings-btn settings-btn-ghost" onClick={addProvider}>
+                  <Plus size={15} /> プロバイダを追加
+                </button>
+              </div>
+              <p class="settings-hint">
+                接続先(Base URL)とAPIキー。同じオリジン上のtik-choco系アプリ間で共有される設定です。
+              </p>
+
+              <div class="settings-card-list">
+                {shared.providers.map((provider) => (
+                  <div key={provider.id} class="settings-card">
                     <label class="settings-field">
-                      <span>モデル</span>
-                      <ModelInput
-                        listId={`settings-models-${preset.id}`}
-                        value={preset.model}
-                        baseUrl={provider?.baseUrl ?? ""}
-                        apiKey={provider?.apiKey ?? ""}
-                        onChange={(model) => updatePreset(preset.id, { model })}
+                      <span>名前</span>
+                      <input
+                        value={provider.label}
+                        placeholder="ローカルLLM"
+                        onInput={(e) => updateProvider(provider.id, { label: e.currentTarget.value })}
                       />
                     </label>
-
                     <label class="settings-field">
-                      <span>温度 (temperature)</span>
+                      <span>Base URL</span>
                       <input
-                        type="number"
-                        min={0}
-                        max={2}
-                        step={0.1}
-                        value={preset.temperature ?? 0.7}
-                        onInput={(e) => {
-                          const parsed = Number.parseFloat(e.currentTarget.value);
-                          updatePreset(preset.id, { temperature: Number.isFinite(parsed) ? parsed : 0.7 });
-                        }}
+                        value={provider.baseUrl}
+                        placeholder="http://localhost:1234/v1"
+                        onInput={(e) => updateProvider(provider.id, { baseUrl: e.currentTarget.value })}
+                      />
+                    </label>
+                    <label class="settings-field">
+                      <span>APIキー</span>
+                      <input
+                        type="password"
+                        autocomplete="off"
+                        value={provider.apiKey}
+                        placeholder="sk-..."
+                        onInput={(e) => updateProvider(provider.id, { apiKey: e.currentTarget.value })}
                       />
                     </label>
                   </div>
-                );
-              })}
-              {shared.presets.length === 0 ? <p class="settings-empty">プリセットが未設定です。</p> : null}
-            </div>
-
-            <label class="settings-field">
-              <span>既定プリセット</span>
-              <select
-                value={shared.defaultPresetId}
-                onChange={(e) => updateShared({ ...shared, defaultPresetId: e.currentTarget.value })}
-              >
-                <option value="">未設定</option>
-                {shared.presets.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label || p.id}
-                  </option>
                 ))}
-              </select>
-            </label>
-          </section>
-        ) : null}
+                {shared.providers.length === 0 ? <p class="settings-empty">プロバイダが未設定です。</p> : null}
+              </div>
 
-        {/* ----- 領収書OCR ----- */}
-        {activeTab === "ocr" ? (
-          <section class="settings-section" role="tabpanel" id="settings-panel-ocr" aria-labelledby="settings-tab-ocr">
-            <h2 class="settings-heading">
-              <Bot size={16} /> 領収書OCR
-            </h2>
-
-            <label class="settings-field">
-              <span>領収書OCR用プリセット</span>
-              <select
-                value={local.visionPresetId}
-                onChange={(e) => updateLocal({ ...local, visionPresetId: e.currentTarget.value })}
-              >
-                <option value="">既定プリセットに従う</option>
-                {shared.presets.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label || p.id}
-                  </option>
-                ))}
-              </select>
-              <span class="settings-field-hint">
-                領収書の画像読み取りは常に直接HTTP接続で実行されます(AI Networkのワイヤーは画像非対応のため)。
-              </span>
-            </label>
-
-            <label class="settings-field">
-              <span>領収書解析用プリセット</span>
-              <select
-                value={local.extractPresetId}
-                onChange={(e) => updateLocal({ ...local, extractPresetId: e.currentTarget.value })}
-              >
-                <option value="">領収書OCR用プリセットに従う</option>
-                {shared.presets.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label || p.id}
-                  </option>
-                ))}
-              </select>
-              <span class="settings-field-hint">
-                読み取った文字起こしをJSONに変換するテキストLLM。未設定の場合は領収書OCR用プリセットと同じ接続先を使います。
-              </span>
-            </label>
-          </section>
-        ) : null}
-
-        {/* ----- AI Network ----- */}
-        {activeTab === "network" ? (
-          <section
-            class="settings-section"
-            role="tabpanel"
-            id="settings-panel-network"
-            aria-labelledby="settings-tab-network"
-          >
-            <h2 class="settings-heading">
-              <Network size={16} /> AI Network
-            </h2>
-            <label class="settings-field">
-              <span>ルームID</span>
-              <input
-                value={shared.network.roomId}
-                placeholder="tc-llm"
-                onInput={(e) => updateShared({ ...shared, network: { roomId: e.currentTarget.value } })}
-              />
-              <span class="settings-field-hint">P2Pネットワーク経由でLLM推論を利用する際の合言葉です。</span>
-            </label>
-
-            <label class="settings-checkbox-field">
-              <input
-                type="checkbox"
-                checked={local.networkConsumerEnabled}
-                onChange={(e) => updateLocal({ ...local, networkConsumerEnabled: e.currentTarget.checked })}
-              />
-              <span>AI Network(P2P)経由でテキストLLMを利用する</span>
-            </label>
-
-            {local.networkConsumerEnabled ? (
-              <p class="settings-hint" role="status">
-                {consumerStatusLabel(consumer)}
+              <div class="settings-heading-row">
+                <h2 class="settings-heading">
+                  <Cpu size={16} /> モデルプリセット
+                </h2>
+                <button
+                  type="button"
+                  class="settings-btn settings-btn-ghost"
+                  onClick={addPreset}
+                  disabled={shared.providers.length === 0}
+                >
+                  <Plus size={15} /> プリセットを追加
+                </button>
+              </div>
+              <p class="settings-hint">
+                {shared.providers.length === 0 ? "先にプロバイダを追加してください。" : "プロバイダに紐づくモデル設定。"}
               </p>
-            ) : null}
-          </section>
-        ) : null}
 
-        {/* ----- バックアップ ----- */}
-        {activeTab === "backup" ? (
-          <section
-            class="settings-section"
-            role="tabpanel"
-            id="settings-panel-backup"
-            aria-labelledby="settings-tab-backup"
-          >
-            <h2 class="settings-heading">
-              <Cloud size={16} /> バックアップ
-            </h2>
-            <p class="settings-hint">tc-storageへ自動バックアップ（暗号化）が有効です。仕訳や科目を変更すると自動的に反映されます。</p>
-            <p class="settings-hint" role="status">
-              {backupPublished ? "最終発行: 済み" : "最終発行: 未発行（起動後しばらくすると自動で発行されます）"}
-            </p>
-          </section>
-        ) : null}
+              <div class="settings-card-list">
+                {shared.presets.map((preset) => {
+                  const provider = shared.providers.find((p) => p.id === preset.providerId);
+                  return (
+                    <div key={preset.id} class="settings-card">
+                      <div class="settings-card-head">
+                        <input
+                          class="settings-card-label"
+                          value={preset.label}
+                          placeholder="プリセット名"
+                          onInput={(e) => updatePreset(preset.id, { label: e.currentTarget.value })}
+                        />
+                        {preset.id === shared.defaultPresetId ? <span class="settings-badge">既定</span> : null}
+                      </div>
 
-        {/* ----- はじめに ----- */}
-        {activeTab === "onboarding" ? (
-          <section
-            class="settings-section"
-            role="tabpanel"
-            id="settings-panel-onboarding"
-            aria-labelledby="settings-tab-onboarding"
-          >
-            <h2 class="settings-heading">
-              <Sparkles size={16} /> はじめに
-            </h2>
-            <p class="settings-hint">初回起動時のセットアップガイドをもう一度表示できます。</p>
-            <button type="button" class="settings-btn settings-btn-ghost" onClick={requestOnboarding}>
-              <Sparkles size={15} /> セットアップガイドを表示
-            </button>
-          </section>
-        ) : null}
+                      <label class="settings-field">
+                        <span>プロバイダ</span>
+                        <select
+                          value={preset.providerId}
+                          onChange={(e) => updatePreset(preset.id, { providerId: e.currentTarget.value })}
+                        >
+                          {shared.providers.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.label || p.id}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label class="settings-field">
+                        <span>モデル</span>
+                        <ModelInput
+                          listId={`settings-models-${preset.id}`}
+                          value={preset.model}
+                          baseUrl={provider?.baseUrl ?? ""}
+                          apiKey={provider?.apiKey ?? ""}
+                          onChange={(model) => updatePreset(preset.id, { model })}
+                        />
+                      </label>
+
+                      <label class="settings-field">
+                        <span>温度 (temperature)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={2}
+                          step={0.1}
+                          value={preset.temperature ?? 0.7}
+                          onInput={(e) => {
+                            const parsed = Number.parseFloat(e.currentTarget.value);
+                            updatePreset(preset.id, { temperature: Number.isFinite(parsed) ? parsed : 0.7 });
+                          }}
+                        />
+                      </label>
+                    </div>
+                  );
+                })}
+                {shared.presets.length === 0 ? <p class="settings-empty">プリセットが未設定です。</p> : null}
+              </div>
+
+              <label class="settings-field">
+                <span>既定プリセット</span>
+                <select
+                  value={shared.defaultPresetId}
+                  onChange={(e) => updateShared({ ...shared, defaultPresetId: e.currentTarget.value })}
+                >
+                  <option value="">未設定</option>
+                  {shared.presets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label || p.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </section>
+          ) : null}
+
+          {/* ----- 領収書OCR ----- */}
+          {activeTab === "ocr" ? (
+            <section class="settings-section" role="tabpanel" id="settings-panel-ocr" aria-labelledby="settings-tab-ocr">
+              <h2 class="settings-heading">
+                <Bot size={16} /> 領収書OCR
+              </h2>
+
+              <label class="settings-field">
+                <span>領収書OCR用プリセット</span>
+                <select
+                  value={local.visionPresetId}
+                  onChange={(e) => updateLocal({ ...local, visionPresetId: e.currentTarget.value })}
+                >
+                  <option value="">既定プリセットに従う</option>
+                  {shared.presets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label || p.id}
+                    </option>
+                  ))}
+                </select>
+                <span class="settings-field-hint">
+                  領収書の画像読み取りは常に直接HTTP接続で実行されます(AI Networkのワイヤーは画像非対応のため)。
+                </span>
+              </label>
+
+              <label class="settings-field">
+                <span>領収書解析用プリセット</span>
+                <select
+                  value={local.extractPresetId}
+                  onChange={(e) => updateLocal({ ...local, extractPresetId: e.currentTarget.value })}
+                >
+                  <option value="">領収書OCR用プリセットに従う</option>
+                  {shared.presets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label || p.id}
+                    </option>
+                  ))}
+                </select>
+                <span class="settings-field-hint">
+                  読み取った文字起こしをJSONに変換するテキストLLM。未設定の場合は領収書OCR用プリセットと同じ接続先を使います。
+                </span>
+              </label>
+            </section>
+          ) : null}
+
+          {/* ----- AI Network ----- */}
+          {activeTab === "network" ? (
+            <section
+              class="settings-section"
+              role="tabpanel"
+              id="settings-panel-network"
+              aria-labelledby="settings-tab-network"
+            >
+              <h2 class="settings-heading">
+                <Network size={16} /> AI Network
+              </h2>
+              <label class="settings-field">
+                <span>ルームID</span>
+                <input
+                  value={shared.network.roomId}
+                  placeholder="tc-llm"
+                  onInput={(e) => updateShared({ ...shared, network: { roomId: e.currentTarget.value } })}
+                />
+                <span class="settings-field-hint">P2Pネットワーク経由でLLM推論を利用する際の合言葉です。</span>
+              </label>
+
+              <label class="settings-checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={local.networkConsumerEnabled}
+                  onChange={(e) => updateLocal({ ...local, networkConsumerEnabled: e.currentTarget.checked })}
+                />
+                <span>AI Network(P2P)経由でテキストLLMを利用する</span>
+              </label>
+
+              {local.networkConsumerEnabled ? (
+                <p class="settings-hint" role="status">
+                  {consumerStatusLabel(consumer)}
+                </p>
+              ) : null}
+            </section>
+          ) : null}
+
+          {/* ----- バックアップ ----- */}
+          {activeTab === "backup" ? (
+            <section
+              class="settings-section"
+              role="tabpanel"
+              id="settings-panel-backup"
+              aria-labelledby="settings-tab-backup"
+            >
+              <h2 class="settings-heading">
+                <Cloud size={16} /> バックアップ
+              </h2>
+              <p class="settings-hint">tc-storageへ自動バックアップ（暗号化）が有効です。仕訳や科目を変更すると自動的に反映されます。</p>
+              <p class="settings-hint" role="status">
+                {backupPublished ? "最終発行: 済み" : "最終発行: 未発行（起動後しばらくすると自動で発行されます）"}
+              </p>
+            </section>
+          ) : null}
+
+          {/* ----- はじめに ----- */}
+          {activeTab === "onboarding" ? (
+            <section
+              class="settings-section"
+              role="tabpanel"
+              id="settings-panel-onboarding"
+              aria-labelledby="settings-tab-onboarding"
+            >
+              <h2 class="settings-heading">
+                <Sparkles size={16} /> はじめに
+              </h2>
+              <p class="settings-hint">初回起動時のセットアップガイドをもう一度表示できます。</p>
+              <button type="button" class="settings-btn settings-btn-ghost" onClick={requestOnboarding}>
+                <Sparkles size={15} /> セットアップガイドを表示
+              </button>
+            </section>
+          ) : null}
+        </div>
       </div>
     </div>
   );

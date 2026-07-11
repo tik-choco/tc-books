@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import {
   BookOpenText,
   ChartColumnBig,
@@ -12,6 +12,7 @@ import {
 import type { MainTab } from "./types";
 import { onHashChange, readHash, writeHash } from "./lib/hashRoute";
 import { useTheme } from "./hooks/useTheme";
+import { paneEnterClass, useEnterDirection } from "./hooks/useEnterDirection";
 import { HomeView } from "./views/HomeView";
 import { JournalView } from "./views/JournalView";
 import { LedgerView } from "./views/LedgerView";
@@ -29,9 +30,18 @@ const TABS: { id: MainTab; label: string; icon: typeof House }[] = [
   { id: "settings", label: "設定", icon: Settings },
 ];
 
+const TAB_ORDER = TABS.map((t) => t.id);
+
 export function App() {
   const { theme, toggleTheme } = useTheme();
   const [tab, setTab] = useState<MainTab>(() => readHash().tab ?? "home");
+  const dir = useEnterDirection(TAB_ORDER, tab);
+  const mainRef = useRef<HTMLElement>(null);
+
+  // Switching tabs should not carry over the previous tab's scroll offset.
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0;
+  }, [tab]);
 
   useEffect(
     () =>
@@ -86,12 +96,15 @@ export function App() {
           </button>
         </div>
       </header>
-      <main class="app-main">
-        {tab === "home" && <HomeView />}
-        {tab === "journal" && <JournalView />}
-        {tab === "ledger" && <LedgerView />}
-        {tab === "reports" && <ReportsView />}
-        {tab === "settings" && <SettingsView />}
+      <main class="app-main" ref={mainRef}>
+        {/* key={tab} remounts the wrapper on every switch, restarting the enter animation */}
+        <div key={tab} class={paneEnterClass(dir)} style={{ height: "100%" }}>
+          {tab === "home" && <HomeView />}
+          {tab === "journal" && <JournalView />}
+          {tab === "ledger" && <LedgerView />}
+          {tab === "reports" && <ReportsView />}
+          {tab === "settings" && <SettingsView />}
+        </div>
       </main>
       {showOnboarding && <Onboarding onClose={closeOnboarding} />}
     </div>
