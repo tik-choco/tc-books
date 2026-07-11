@@ -83,6 +83,8 @@
   --dur-fast: 130ms;
   --dur: 220ms;
   --dur-slow: 360ms;
+  /* How far an incoming panel slides during a tab switch (.pane-enter) */
+  --pane-shift: 14px;
 
   --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, 'Cascadia Mono', 'SF Mono', Consolas, monospace;
@@ -192,6 +194,60 @@ a:hover {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: var(--radius-xs);
+}
+
+/* ============================================================
+   Panel enter animations (tab / screen switches).
+   Wrap the active panel in a keyed element:
+     <div key={active} class={paneEnterClass(dir)}>…</div>
+   with dir from useEnterDirection — the key remount restarts the
+   animation, the modifier picks which side it slides in from.
+   Enter-only by design: the old panel unmounts instantly, so there
+   is never a frame with two panels fighting over layout.
+   ============================================================ */
+
+.pane-enter {
+  animation: pane-fade-in var(--dur) var(--ease-out) both;
+}
+
+.pane-enter--from-right {
+  animation-name: pane-slide-from-right;
+}
+
+.pane-enter--from-left {
+  animation-name: pane-slide-from-left;
+}
+
+@keyframes pane-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes pane-slide-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(var(--pane-shift));
+  }
+}
+
+@keyframes pane-slide-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(calc(-1 * var(--pane-shift)));
+  }
+}
+
+/* Users who ask the OS for less motion get (near-)instant switches
+   everywhere — animations collapse to a single imperceptible frame. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Thin custom scrollbars */
