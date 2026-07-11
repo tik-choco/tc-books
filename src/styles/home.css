@@ -1,0 +1,574 @@
+/* HomeView — 家計簿の入口タブ。複式簿記の言葉は出さず、月ナビ + サマリカード +
+   クイック入力 + カテゴリ内訳 + 最近の記録を縦に積む。すべて .home- プレフィックスで
+   スコープし、他タブ(journal/reports/settings/ocr)のCSSと衝突しないようにする。
+   トークンは src/index.css のもののみ使用。モバイル幅ファースト。 */
+
+.home-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) var(--space-6);
+}
+
+/* --- 月ナビゲータ -------------------------------------------------------- */
+
+.home-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.home-month-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.home-month-btn:hover {
+  color: var(--text);
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+.home-month-label {
+  min-width: 9em;
+  padding: var(--space-1) var(--space-3);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  background: none;
+  border: none;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.home-month-label:hover {
+  background: var(--surface-2);
+}
+
+/* --- サマリカード -------------------------------------------------------- */
+
+.home-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.home-summary-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-1);
+}
+
+.home-summary-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-pill);
+}
+
+.home-summary-icon--income {
+  color: var(--debit);
+  background: var(--debit-soft);
+}
+
+.home-summary-icon--expense {
+  color: var(--credit);
+  background: var(--credit-soft);
+}
+
+.home-summary-icon--net {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+
+.home-summary-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.home-summary-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-subtle);
+}
+
+.home-summary-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.home-net-positive {
+  color: var(--debit);
+}
+
+.home-net-negative {
+  color: var(--danger);
+}
+
+/* --- 共通カード ------------------------------------------------------------ */
+
+.home-card {
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-1);
+}
+
+.home-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.home-card-title svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+/* --- クイック入力フォーム -------------------------------------------------- */
+
+.home-quick-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-1);
+}
+
+.home-quick-header .home-card-title {
+  margin-bottom: 0;
+}
+
+.home-quick-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.home-kind-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.home-kind-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.home-kind-btn:hover {
+  border-color: var(--border-strong);
+}
+
+.home-kind-btn-active-expense {
+  color: var(--credit);
+  background: var(--credit-soft);
+  border-color: var(--credit);
+}
+
+.home-kind-btn-active-income {
+  color: var(--debit);
+  background: var(--debit-soft);
+  border-color: var(--debit);
+}
+
+.home-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.home-field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.home-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+/* 大きめの金額入力 */
+.home-amount-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.home-amount-wrap:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.home-amount-yen {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-subtle);
+}
+
+.home-amount-input {
+  flex: 1;
+  padding: var(--space-2) 0;
+  font: inherit;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  background: none;
+  border: none;
+}
+
+.home-amount-input:focus {
+  outline: none;
+}
+
+.home-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.home-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.home-chip:hover {
+  border-color: var(--border-strong);
+}
+
+.home-chip-active {
+  color: var(--on-primary);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.home-view input[type="text"],
+.home-view input[type="date"],
+.home-view select {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.home-view input[type="text"]::placeholder {
+  color: var(--text-subtle);
+}
+
+.home-view input[type="text"]:hover:not(:focus-visible),
+.home-view input[type="date"]:hover:not(:focus-visible),
+.home-view select:hover:not(:focus-visible) {
+  border-color: var(--border-strong);
+}
+
+.home-view input[type="text"]:focus-visible,
+.home-view input[type="date"]:focus-visible,
+.home-view select:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.home-form-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.82rem;
+  color: var(--danger-text);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-s);
+}
+
+.home-submit-btn {
+  padding: var(--space-3);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--on-primary);
+  background: var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-m);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+
+.home-submit-btn:hover {
+  background: var(--primary-hover);
+  box-shadow: var(--shadow-1);
+}
+
+/* --- 空状態 ---------------------------------------------------------------- */
+
+.home-empty-card {
+  display: flex;
+}
+
+.home-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+}
+
+.home-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: var(--radius-pill);
+}
+
+.home-empty-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.home-empty-desc {
+  max-width: 32em;
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--text-subtle);
+}
+
+/* --- 内訳 + 最近の記録: モバイルは1カラム、640px以上で2カラム --------------- */
+
+.home-content-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  .home-content-grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+/* --- カテゴリ別内訳 --------------------------------------------------------- */
+
+.home-breakdown-empty {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-subtle);
+}
+
+.home-breakdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-breakdown-list--small {
+  gap: var(--space-2);
+}
+
+.home-breakdown-row {
+  display: grid;
+  grid-template-columns: 5.5em 1fr auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.home-breakdown-name {
+  overflow: hidden;
+  font-size: 0.84rem;
+  color: var(--text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.home-breakdown-bar-track {
+  display: block;
+  height: 8px;
+  overflow: hidden;
+  background: var(--primary-soft);
+  border-radius: var(--radius-pill);
+}
+
+.home-breakdown-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+  border-radius: var(--radius-pill);
+  transition: width var(--dur) var(--ease);
+}
+
+.home-breakdown-bar-track--income {
+  background: var(--credit-soft);
+}
+
+.home-breakdown-bar-fill--income {
+  background: var(--credit);
+}
+
+.home-breakdown-amount {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.home-breakdown-income {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+
+.home-breakdown-subtitle {
+  margin: 0 0 var(--space-3);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-subtle);
+}
+
+/* --- 最近の記録 ------------------------------------------------------------- */
+
+.home-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-recent-row {
+  display: grid;
+  grid-template-columns: 3em 1fr auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.home-recent-row:last-child {
+  border-bottom: none;
+}
+
+.home-recent-date {
+  font-size: 0.78rem;
+  color: var(--text-subtle);
+  white-space: nowrap;
+}
+
+.home-recent-desc {
+  overflow: hidden;
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.home-recent-category {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-3);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+}
+
+.home-recent-amount {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.home-amount-expense {
+  color: var(--credit);
+}
+
+.home-amount-income {
+  color: var(--debit);
+}
