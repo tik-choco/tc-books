@@ -1,6 +1,8 @@
 /* ============================================================
-   Settings screen — shared LLM config editor + tc-books-local
-   settings + backup status. Uses only src/index.css design tokens.
+   Settings screen — tabbed layout (LLM / 領収書OCR / AI Network /
+   バックアップ / はじめに) with shared LLM config editor +
+   tc-books-local settings + backup status. Uses only src/index.css
+   design tokens.
    ============================================================ */
 
 .settings-view {
@@ -23,6 +25,50 @@
   gap: var(--space-2);
   font-size: 1.25rem;
   font-weight: 700;
+}
+
+/* --- Tabs ------------------------------------------------------------------ */
+
+.settings-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.settings-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-subtle);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.settings-tab:hover {
+  color: var(--text);
+}
+
+.settings-tab--active,
+.settings-tab--active:hover {
+  color: var(--primary);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
 }
 
 .settings-section {
