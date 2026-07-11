@@ -17,15 +17,20 @@
 import { useEffect, useState } from "preact/hooks";
 import type { JSX } from "preact";
 import {
+  BookOpenText,
   Bot,
+  Check,
   Cloud,
   Cpu,
   Network,
+  Pencil,
   Plug,
   Plus,
   RefreshCw,
   Settings as SettingsIcon,
   Sparkles,
+  Trash2,
+  X,
 } from "lucide-preact";
 import { fetchModels } from "@tik-choco/mistai";
 import {
@@ -48,6 +53,9 @@ import {
   onConsumerStatusChange,
   type ConsumerStatus,
 } from "../lib/network";
+import { createBook, deleteBook, getActiveBookId, loadBooks, renameBook, setActiveBook, subscribeBooks } from "../lib/store";
+import type { Book, BookKind } from "../types";
+import { BOOK_KIND_LABEL, BOOK_KIND_ORDER } from "../components/BookSwitcher";
 import "../styles/settings.css";
 
 // Read-only presence check for booksBackupPublisher's publish-state record —
@@ -116,6 +124,12 @@ function ModelInput(props: {
   );
 }
 
+function formatBookDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("ja-JP");
+}
+
 function consumerStatusLabel(status: ConsumerStatus): string {
   switch (status.phase) {
     case "joining":
@@ -135,9 +149,10 @@ function consumerStatusLabel(status: ConsumerStatus): string {
 // Tab selection is remembered across visits (localStorage, parsed defensively
 // — same pattern as llmSettings.ts).
 
-type SettingsTabId = "llm" | "ocr" | "network" | "backup" | "onboarding";
+type SettingsTabId = "books" | "llm" | "ocr" | "network" | "backup" | "onboarding";
 
 const SETTINGS_TABS: Array<{ id: SettingsTabId; label: string; icon: typeof Plug }> = [
+  { id: "books", label: "帳簿", icon: BookOpenText },
   { id: "llm", label: "LLM", icon: Plug },
   { id: "ocr", label: "領収書OCR", icon: Bot },
   { id: "network", label: "AI Network", icon: Network },
@@ -182,6 +197,64 @@ export function SettingsView(): JSX.Element {
 
   // tc-books固有のローカル設定
   const [local, setLocal] = useState<BooksLocalSettings>(() => loadLocalSettings());
+
+  // ----- 帳簿一覧 (他タブ/ヘッダーのBookSwitcherでの変更も subscribeBooks で反映) -----
+  const [books, setBooks] = useState<Book[]>(() => loadBooks());
+  const [activeBookId, setActiveBookId] = useState<string>(() => getActiveBookId());
+  useEffect(
+    () =>
+      subscribeBooks(() => {
+        setBooks(loadBooks());
+        setActiveBookId(getActiveBookId());
+      }),
+    [],
+  );
+
+  const [creatingBook, setCreatingBook] = useState(false);
+  const [newBookName, setNewBookName] = useState("");
+  const [newBookKind, setNewBookKind] = useState<BookKind>("household");
+
+  function submitCreateBook(e: Event) {
+    e.preventDefault();
+    const trimmed = newBookName.trim();
+    if (!trimmed) return;
+    const book = createBook(trimmed, newBookKind);
+    setActiveBook(book.id);
+    setNewBookName("");
+    setNewBookKind("household");
+    setCreatingBook(false);
+  }
+
+  const [editingBookId, setEditingBookId] = useState<string | null>(null);
+  const [editingBookName, setEditingBookName] = useState("");
+
+  function startRenameBook(book: Book) {
+    setEditingBookId(book.id);
+    setEditingBookName(book.name);
+  }
+
+  function cancelRenameBook() {
+    setEditingBookId(null);
+    setEditingBookName("");
+  }
+
+  function submitRenameBook(e: Event) {
+    e.preventDefault();
+    const trimmed = editingBookName.trim();
+    if (!trimmed || !editingBookId) return;
+    renameBook(editingBookId, trimmed);
+    cancelRenameBook();
+  }
+
+  function handleDeleteBook(book: Book) {
+    if (books.length <= 1) return;
+    const ok = confirm(
+      `帳簿「${book.name}」を削除しますか?\nこの帳簿の仕訳・勘定科目もすべて削除され、元に戻せません。`,
+    );
+    if (!ok) return;
+    if (editingBookId === book.id) cancelRenameBook();
+    deleteBook(book.id);
+  }
 
   const [consumer, setConsumer] = useState<ConsumerStatus>(() => consumerStatus());
   useEffect(() => onConsumerStatusChange(setConsumer), []);
@@ -279,6 +352,129 @@ export function SettingsView(): JSX.Element {
             );
           })}
         </div>
+
+        {/* ----- 帳簿 ----- */}
+        {activeTab === "books" ? (
+          <section
+            class="settings-section"
+            role="tabpanel"
+            id="settings-panel-books"
+            aria-labelledby="settings-tab-books"
+          >
+            <div class="settings-heading-row">
+              <h2 class="settings-heading">
+                <BookOpenText size={16} /> 帳簿
+              </h2>
+              <button
+                type="button"
+                class="settings-btn settings-btn-ghost"
+                onClick={() => {
+                  setCreatingBook((v) => !v);
+                  setNewBookName("");
+                  setNewBookKind("household");
+                }}
+              >
+                {creatingBook ? <X size={15} /> : <Plus size={15} />}
+                {creatingBook ? "閉じる" : "新しい帳簿を作成"}
+              </button>
+            </div>
+            <p class="settings-hint">
+              帳簿ごとに仕訳・勘定科目が独立して管理されます。ヘッダーの帳簿名からいつでも切り替えられます。
+            </p>
+
+            {creatingBook ? (
+              <form class="settings-card" onSubmit={submitCreateBook}>
+                <label class="settings-field">
+                  <span>帳簿名</span>
+                  <input
+                    value={newBookName}
+                    placeholder="例: 〇〇サークル"
+                    onInput={(e) => setNewBookName(e.currentTarget.value)}
+                    autoFocus
+                  />
+                </label>
+                <label class="settings-field">
+                  <span>種別</span>
+                  <select value={newBookKind} onChange={(e) => setNewBookKind(e.currentTarget.value as BookKind)}>
+                    {BOOK_KIND_ORDER.map((kind) => (
+                      <option key={kind} value={kind}>
+                        {BOOK_KIND_LABEL[kind]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div style="display:flex;justify-content:flex-end;">
+                  <button type="submit" class="settings-btn settings-btn-ghost" disabled={!newBookName.trim()}>
+                    <Plus size={15} /> 作成して切り替え
+                  </button>
+                </div>
+              </form>
+            ) : null}
+
+            <div class="settings-card-list">
+              {books.map((book) => (
+                <div key={book.id} class="settings-card">
+                  {editingBookId === book.id ? (
+                    <form class="settings-card-head" onSubmit={submitRenameBook}>
+                      <input
+                        class="settings-card-label"
+                        value={editingBookName}
+                        onInput={(e) => setEditingBookName(e.currentTarget.value)}
+                        autoFocus
+                      />
+                      <button
+                        type="submit"
+                        class="settings-icon-btn"
+                        title="保存"
+                        aria-label="保存"
+                        disabled={!editingBookName.trim()}
+                      >
+                        <Check size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        class="settings-icon-btn"
+                        title="キャンセル"
+                        aria-label="キャンセル"
+                        onClick={cancelRenameBook}
+                      >
+                        <X size={14} />
+                      </button>
+                    </form>
+                  ) : (
+                    <div class="settings-card-head">
+                      <span class="settings-card-label">{book.name}</span>
+                      {book.id === activeBookId ? <span class="settings-badge">使用中</span> : null}
+                      <button
+                        type="button"
+                        class="settings-icon-btn"
+                        title="名前を変更"
+                        aria-label="名前を変更"
+                        onClick={() => startRenameBook(book)}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        class="settings-icon-btn"
+                        title={books.length <= 1 ? "最後の1冊は削除できません" : "削除"}
+                        aria-label="削除"
+                        disabled={books.length <= 1}
+                        onClick={() => handleDeleteBook(book)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )}
+                  <p class="settings-field-hint">
+                    種別: {BOOK_KIND_LABEL[book.kind]} ・ 作成日: {formatBookDate(book.createdAt)}
+                  </p>
+                </div>
+              ))}
+              {books.length === 0 ? <p class="settings-empty">帳簿がありません。</p> : null}
+            </div>
+          </section>
+        ) : null}
 
         {/* ----- LLM プロバイダ / プリセット ----- */}
         {activeTab === "llm" ? (

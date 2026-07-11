@@ -1,11 +1,15 @@
 // Cross-app backup publisher. Continuously and automatically publishes a
-// full-bundle JSON snapshot of the ledger (journal entries + custom accounts)
-// onto the shared bus (lib/sharedBus.ts) under topic "books-backup", so
-// tc-storage's drive (the sibling app, same origin in production) shows
-// tc-books' data as a file without any user action. See
-// protocol/docs/data-contracts/docs/SHARED_BUS.md for the shared-bus
-// contract — tc-storage's consumer is built against this exact meta shape,
-// so keep it in sync deliberately rather than reshaping opportunistically.
+// full-bundle JSON snapshot of *all* books (each book's journal entries +
+// custom accounts — see MultiBookBundle in types.ts) onto the shared bus
+// (lib/sharedBus.ts) under topic "books-backup", so tc-storage's drive (the
+// sibling app, same origin in production) shows tc-books' data as a file
+// without any user action. See protocol/docs/data-contracts/docs/SHARED_BUS.md
+// for the shared-bus contract — tc-storage's consumer is built against the
+// exact BooksBackupItem/BooksBackupMeta shape below (meta v:1, item id
+// "tc-books-backup"), so keep that outer shape in sync deliberately rather
+// than reshaping opportunistically. tc-storage treats the encrypted payload
+// as an opaque file, so the inner JSON schema (MultiBookBundle v2, replacing
+// the single-book BooksBundle v1) is free to evolve independently.
 //
 // Ported verbatim (structure + comments) from tc-town's
 // src/lib/townBackupPublisher.ts (see docs/CONTRACTS.md). Encryption model
@@ -16,7 +20,7 @@
 // inline in `meta` alongside the CID. Same-origin localStorage is the trust
 // boundary for that inline key, per the established pattern.
 //
-// Change detection: loadBooksBundle()'s `exportedAt` timestamp changes on
+// Change detection: loadMultiBookBundle()'s `exportedAt` timestamp changes on
 // every build, so publishing unconditionally on every trigger would churn
 // forever (new CID, new key, new bus event on every character/edit's
 // debounce tick even when nothing meaningful changed). Instead this module
@@ -25,13 +29,16 @@
 // localStorage under tc-books:backup-publish-state-v1), skipping the publish
 // (and leaving the stored signature untouched) when unchanged. The stored
 // signature is only updated after a fully successful publish, so a failed
-// attempt retries on the next trigger.
+// attempt retries on the next trigger. subscribeBooks also fires on
+// book-registry events (create/rename/switch active book), but those still
+// go through this same signature check — a registry event with no actual
+// content change (e.g. switching the active book) is a no-op publish.
 //
 // Best-effort throughout: guarded on Web Crypto availability, every failure
 // is caught and logged via console.warn, never thrown — a failed publish
 // must never break the app.
 
-import { loadBooksBundle, subscribeBooks } from "./store";
+import { loadMultiBookBundle, subscribeBooks } from "./store";
 import { publishShared } from "./sharedBus";
 import { storageAdd } from "./mistClient";
 
@@ -131,7 +138,7 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
 async function publishBundleUnsafe(): Promise<void> {
   if (typeof crypto === "undefined" || !crypto.subtle) return;
 
-  const bundle = loadBooksBundle();
+  const bundle = loadMultiBookBundle();
 
   // exportedAt is volatile (changes on every build) — exclude it from the
   // change-detection signature so an otherwise-identical bundle doesn't
@@ -213,9 +220,11 @@ let started = false;
 /**
  * Starts the books-backup publisher: publishes once shortly after startup
  * (delayed so the lazy mist node connection never blocks boot), then
- * re-publishes (debounced) on every journal/account change
- * (lib/store.ts's subscribeBooks). Idempotent — safe to call more than once
- * (subsequent calls are no-ops).
+ * re-publishes (debounced) on every journal/account change across any book,
+ * as well as book-registry events (create/rename/switch active book)
+ * (lib/store.ts's subscribeBooks) — though a registry event that doesn't
+ * change any book's content is skipped by the signature check above.
+ * Idempotent — safe to call more than once (subsequent calls are no-ops).
  */
 export function startBooksBackupPublisher(): void {
   if (started) return;
