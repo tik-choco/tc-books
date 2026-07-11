@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from "preact/hooks";
 import type { JSX } from "preact";
-import { Bot, Cloud, Cpu, Network, Plug, Plus, RefreshCw, Settings as SettingsIcon } from "lucide-preact";
+import { Bot, Cloud, Cpu, Network, Plug, Plus, RefreshCw, Settings as SettingsIcon, Sparkles } from "lucide-preact";
 import { fetchModels } from "@tik-choco/mistai";
 import {
   emptyLlmConfig,
@@ -28,6 +28,7 @@ import {
   type SharedLlmConfigV1,
 } from "../lib/llmConfig";
 import { loadLocalSettings, saveLocalSettings, type BooksLocalSettings } from "../lib/llmSettings";
+import { requestOnboarding } from "../lib/onboarding";
 import {
   connectNetworkConsumer,
   consumerStatus,
@@ -423,6 +424,17 @@ export function SettingsView(): JSX.Element {
           <p class="settings-hint" role="status">
             {backupPublished ? "最終発行: 済み" : "最終発行: 未発行（起動後しばらくすると自動で発行されます）"}
           </p>
+        </section>
+
+        {/* ----- はじめに ----- */}
+        <section class="settings-section">
+          <h2 class="settings-heading">
+            <Sparkles size={16} /> はじめに
+          </h2>
+          <p class="settings-hint">初回起動時のセットアップガイドをもう一度表示できます。</p>
+          <button type="button" class="settings-btn settings-btn-ghost" onClick={requestOnboarding}>
+            <Sparkles size={15} /> セットアップガイドを表示
+          </button>
         </section>
       </div>
     </div>
