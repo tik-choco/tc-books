@@ -1,0 +1,432 @@
+/* ============================================================
+   Receipt OCR import (ReceiptImportButton) — trigger button +
+   overlay modal. Uses only src/index.css design tokens.
+   ============================================================ */
+
+.ocr-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--primary-border);
+  border-radius: var(--radius-s);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.ocr-trigger:hover {
+  background: var(--primary-soft-strong);
+}
+
+.ocr-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--scrim);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.ocr-modal {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 460px;
+  max-height: min(88vh, 720px);
+  border-radius: var(--radius-l);
+  border: 1px solid var(--border);
+  background: var(--elevated);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+  transition: max-width var(--dur) var(--ease);
+}
+
+/* 読み取り結果ステージ: 画像とフォームの2カラム表示のため横に広げる */
+.ocr-modal-wide {
+  max-width: 960px;
+  width: 92vw;
+}
+
+.ocr-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.ocr-modal-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.ocr-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.ocr-icon-btn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.ocr-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  overflow-y: auto;
+}
+
+.ocr-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-m);
+  color: var(--text-muted);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+
+.ocr-dropzone:hover,
+.ocr-dropzone-active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--text);
+}
+
+.ocr-dropzone p {
+  font-size: 0.9rem;
+}
+
+.ocr-file-input {
+  display: none;
+}
+
+.ocr-draft-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ocr-draft-list-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.ocr-draft-list ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ocr-draft-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+
+.ocr-draft-thumb {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  object-fit: cover;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.ocr-draft-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.ocr-draft-primary {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ocr-draft-secondary {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-subtle);
+}
+
+.ocr-draft-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.ocr-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.ocr-preview-img {
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.ocr-preview-actions,
+.ocr-result-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.ocr-primary-btn,
+.ocr-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-s);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.ocr-primary-btn {
+  border: 1px solid transparent;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.ocr-primary-btn:hover {
+  background: var(--primary-hover);
+}
+
+.ocr-secondary-btn {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.ocr-secondary-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.ocr-scanning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ocr-scanning-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.ocr-spin {
+  animation: ocr-spin var(--dur-slow) linear infinite;
+}
+
+@keyframes ocr-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.ocr-progress-text {
+  max-height: 96px;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-subtle);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-y: auto;
+}
+
+.ocr-result-columns {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.ocr-result-image-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  position: sticky;
+  top: 0;
+  flex: 0 0 42%;
+  max-width: 42%;
+}
+
+.ocr-result-image {
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: zoom-in;
+}
+
+.ocr-result-image img {
+  display: block;
+  width: 100%;
+  max-height: min(70vh, 640px);
+  object-fit: contain;
+}
+
+.ocr-result-image-zoomed {
+  cursor: zoom-out;
+}
+
+.ocr-result-image-zoomed img {
+  width: auto;
+  max-width: none;
+  max-height: none;
+}
+
+.ocr-result-image-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-subtle);
+  text-align: center;
+}
+
+.ocr-result-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .ocr-result-columns {
+    flex-direction: column;
+  }
+
+  .ocr-result-image-pane {
+    position: static;
+    flex: 1 1 auto;
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .ocr-result-image,
+  .ocr-result-image img {
+    max-height: 40vh;
+  }
+}
+
+.ocr-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.ocr-field input,
+.ocr-field select,
+.ocr-field textarea {
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.ocr-field input:focus,
+.ocr-field select:focus,
+.ocr-field textarea:focus {
+  border-color: var(--primary);
+}
+
+.ocr-field textarea {
+  resize: vertical;
+}
+
+.ocr-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-s);
+  border: 1px solid var(--danger-border);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+  font-size: 0.85rem;
+}
+
+.ocr-error ul {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.ocr-done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-4) 0;
+}
+
+.ocr-done-message {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--success);
+  font-weight: 600;
+}

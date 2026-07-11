@@ -1,0 +1,612 @@
+/* JournalView + EntryEditor — 仕訳帳テーブルと仕訳エディタモーダルのスタイル。
+   すべて src/index.css のトークンのみを使用する。他ビューのCSSと衝突しないよう
+   クラス名は jv-（JournalView）/ ee-（EntryEditor）で名前空間を切っている。 */
+
+.jv-view {
+  padding: var(--space-5);
+}
+
+.jv-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+/* --- Toolbar: filters + actions --------------------------------------- */
+
+.jv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.jv-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.jv-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.jv-select {
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.jv-search {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text-subtle);
+  min-width: 220px;
+}
+
+.jv-search input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+}
+
+.jv-select:focus-visible,
+.jv-search:focus-within {
+  border-color: var(--primary-border);
+}
+
+/* --- Generic buttons (namespaced to avoid clashing with other views) --- */
+
+.jv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.jv-btn-primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.jv-btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.jv-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.jv-icon-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.jv-icon-btn--danger:hover {
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+}
+
+.jv-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* --- Table --------------------------------------------------------------- */
+
+.jv-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.jv-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.jv-table th {
+  position: sticky;
+  top: 0;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-subtle);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.jv-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.jv-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.jv-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.jv-date {
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.jv-desc-cell {
+  min-width: 180px;
+}
+
+.jv-desc {
+  font-weight: 600;
+}
+
+.jv-memo {
+  margin-top: 2px;
+  font-size: 0.8rem;
+  color: var(--text-subtle);
+}
+
+.jv-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 180px;
+}
+
+.jv-line-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.jv-account {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.jv-amount {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.jv-amount--debit {
+  color: var(--debit);
+}
+
+.jv-amount--credit {
+  color: var(--credit);
+}
+
+.jv-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.jv-badge--manual {
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+.jv-badge--quick {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.jv-badge--ocr {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/* --- Empty state ----------------------------------------------------------- */
+
+.jv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-l);
+  color: var(--text-subtle);
+  text-align: center;
+}
+
+.jv-empty-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.jv-empty-sub {
+  font-size: 0.88rem;
+  color: var(--text-subtle);
+}
+
+/* ============================================================
+   EntryEditor modal
+   ============================================================ */
+
+.ee-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: var(--scrim);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: ee-overlay-in 160ms var(--ease-out);
+}
+
+@keyframes ee-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.ee-panel {
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-3);
+  animation: ee-panel-in 220ms var(--ease-out);
+}
+
+@keyframes ee-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ee-overlay,
+  .ee-panel {
+    animation-duration: 1ms !important;
+  }
+}
+
+.ee-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.ee-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ee-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.ee-close:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.ee-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.ee-field-row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.ee-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.ee-field--grow {
+  flex: 1;
+}
+
+.ee-field input,
+.ee-field textarea {
+  font: inherit;
+  font-weight: 400;
+  color: var(--text);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  resize: vertical;
+}
+
+.ee-field input:focus-visible,
+.ee-field textarea:focus-visible {
+  border-color: var(--primary-border);
+}
+
+.ee-lines-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.ee-lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ee-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ee-line-account,
+.ee-line-amount {
+  font: inherit;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text);
+  min-width: 0;
+}
+
+.ee-line-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ee-line-remove:hover:not(:disabled) {
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+}
+
+.ee-line-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ee-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+
+.ee-totals-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.ee-totals-item .num {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.ee-totals-diff--bad .num {
+  color: var(--danger-text);
+}
+
+.ee-errors {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-m);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+  font-size: 0.85rem;
+  list-style: disc;
+  list-style-position: inside;
+}
+
+.ee-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.ee-footer-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ee-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.ee-btn-primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.ee-btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.ee-btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.ee-btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.ee-btn-danger {
+  background: transparent;
+  border-color: var(--danger-border);
+  color: var(--danger-text);
+}
+
+.ee-btn-danger:hover {
+  background: var(--danger-soft);
+}
+
+@media (max-width: 640px) {
+  .jv-view {
+    padding: var(--space-3);
+  }
+
+  .jv-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .jv-actions {
+    justify-content: space-between;
+  }
+
+  .ee-overlay {
+    padding: var(--space-3);
+  }
+
+  .ee-field-row {
+    flex-direction: column;
+  }
+
+  .ee-line {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "account account"
+      "debit credit"
+      "remove remove";
+  }
+
+  .ee-line-account {
+    grid-area: account;
+  }
+}
