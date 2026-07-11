@@ -17,6 +17,7 @@ import { JournalView } from "./views/JournalView";
 import { LedgerView } from "./views/LedgerView";
 import { ReportsView } from "./views/ReportsView";
 import { SettingsView } from "./views/SettingsView";
+import { BookSwitcher } from "./components/BookSwitcher";
 import { Onboarding } from "./components/Onboarding";
 import { markOnboardingDone, shouldShowOnboarding, subscribeOnboardingRequests } from "./lib/onboarding";
 
@@ -62,6 +63,7 @@ export function App() {
           <NotebookText size={20} />
           TC Books
         </div>
+        <BookSwitcher />
         <nav class="app-tabs">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
