@@ -53,7 +53,7 @@ import {
   onConsumerStatusChange,
   type ConsumerStatus,
 } from "../lib/network";
-import { createBook, deleteBook, getActiveBookId, loadBooks, renameBook, setActiveBook, subscribeBooks } from "../lib/store";
+import { createBook, deleteBook, getActiveBookId, loadBooks, renameBook, setActiveBook, subscribeBooks, updateBookKind } from "../lib/store";
 import type { Book, BookKind } from "../types";
 import { BOOK_KIND_LABEL, BOOK_KIND_ORDER } from "../components/BookSwitcher";
 import "../styles/settings.css";
@@ -244,6 +244,21 @@ export function SettingsView(): JSX.Element {
     if (!trimmed || !editingBookId) return;
     renameBook(editingBookId, trimmed);
     cancelRenameBook();
+  }
+
+  function handleChangeBookKind(book: Book, nextKind: BookKind) {
+    if (nextKind === book.kind) return;
+    const ok = confirm(
+      `帳簿「${book.name}」の種別を「${BOOK_KIND_LABEL[nextKind]}」に変更しますか?\nクイック入力などの科目候補が新しい種別のものに変わります。過去の仕訳はそのまま残ります。`,
+    );
+    if (!ok) {
+      // selectはbook.kindを value とする制御コンポーネントだが、ブラウザは
+      // change時点でDOMの表示値を先に書き換えているため、キャンセル時は
+      // 明示的に再描画してbook.kindへ戻す。
+      setBooks(loadBooks());
+      return;
+    }
+    updateBookKind(book.id, nextKind);
   }
 
   function handleDeleteBook(book: Book) {
@@ -466,9 +481,21 @@ export function SettingsView(): JSX.Element {
                       </button>
                     </div>
                   )}
-                  <p class="settings-field-hint">
-                    種別: {BOOK_KIND_LABEL[book.kind]} ・ 作成日: {formatBookDate(book.createdAt)}
-                  </p>
+                  <div class="settings-field-hint settings-book-kind-row">
+                    <span>種別:</span>
+                    <select
+                      class="settings-book-kind-select"
+                      value={book.kind}
+                      onChange={(e) => handleChangeBookKind(book, e.currentTarget.value as BookKind)}
+                    >
+                      {BOOK_KIND_ORDER.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {BOOK_KIND_LABEL[kind]}
+                        </option>
+                      ))}
+                    </select>
+                    <span>・ 作成日: {formatBookDate(book.createdAt)}</span>
+                  </div>
                 </div>
               ))}
               {books.length === 0 ? <p class="settings-empty">帳簿がありません。</p> : null}
