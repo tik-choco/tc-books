@@ -17,6 +17,8 @@ import { JournalView } from "./views/JournalView";
 import { LedgerView } from "./views/LedgerView";
 import { ReportsView } from "./views/ReportsView";
 import { SettingsView } from "./views/SettingsView";
+import { Onboarding } from "./components/Onboarding";
+import { markOnboardingDone, shouldShowOnboarding, subscribeOnboardingRequests } from "./lib/onboarding";
 
 const TABS: { id: MainTab; label: string; icon: typeof House }[] = [
   { id: "home", label: "家計簿", icon: House },
@@ -41,6 +43,16 @@ export function App() {
   function selectTab(next: MainTab) {
     setTab(next);
     writeHash(next);
+  }
+
+  // First-run wizard: shown once on a fresh install, and re-openable from the
+  // settings screen. Closing it (any path) marks onboarding done.
+  const [showOnboarding, setShowOnboarding] = useState(() => shouldShowOnboarding());
+  useEffect(() => subscribeOnboardingRequests(() => setShowOnboarding(true)), []);
+
+  function closeOnboarding() {
+    markOnboardingDone();
+    setShowOnboarding(false);
   }
 
   return (
@@ -79,6 +91,7 @@ export function App() {
         {tab === "reports" && <ReportsView />}
         {tab === "settings" && <SettingsView />}
       </main>
+      {showOnboarding && <Onboarding onClose={closeOnboarding} />}
     </div>
   );
 }
