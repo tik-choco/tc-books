@@ -471,6 +471,18 @@ export function renameBook(id: string, name: string): void {
   notifyChanged();
 }
 
+/** 未知IDまたは未知kindはno-op */
+export function updateBookKind(id: string, kind: BookKind): void {
+  const registry = ensureRegistry();
+  if (!(BOOK_KINDS as string[]).includes(kind)) return;
+  const idx = registry.books.findIndex((b) => b.id === id);
+  if (idx < 0) return;
+  const books = [...registry.books];
+  books[idx] = { ...books[idx], kind };
+  persistRegistry({ ...registry, books });
+  notifyChanged();
+}
+
 /**
  * 帳簿を削除する。最後の1冊は削除拒否 (no-op + console.warn)。
  * アクティブ帳簿を削除した場合は残りの先頭をアクティブにする。

@@ -59,7 +59,26 @@ export function LedgerView(): JSX.Element {
   const [entries, setEntries] = useState<JournalEntry[]>(() => loadEntries());
   useEffect(() => subscribeBooks(() => setEntries(loadEntries())), []);
 
-  const accounts = useMemo(() => allAccounts(), [entries]);
+  const accounts = useMemo(() => {
+    // Base chart (current book kind + custom accounts). Union in any
+    // accountId referenced by loaded entries but absent from the current
+    // chart (e.g. left over after a book-kind change) — accountById()
+    // resolves those via its cross-kind fallback so history stays visible
+    // in the ledger even though the account no longer belongs to the
+    // active chart. Unresolvable ids (e.g. deleted custom accounts) stay
+    // ignored, matching prior behavior.
+    const base = allAccounts();
+    const seen = new Set(base.map((a) => a.id));
+    const extra = new Map<string, Account>();
+    for (const entry of entries) {
+      for (const line of entry.lines) {
+        if (seen.has(line.accountId) || extra.has(line.accountId)) continue;
+        const resolved = accountById(line.accountId);
+        if (resolved) extra.set(line.accountId, resolved);
+      }
+    }
+    return [...base, ...extra.values()].sort((a, b) => a.code.localeCompare(b.code));
+  }, [entries]);
   const balances = useMemo(() => {
     const map = new Map<string, number>();
     for (const acc of accounts) {

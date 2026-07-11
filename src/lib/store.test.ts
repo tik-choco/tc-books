@@ -10,6 +10,7 @@ import {
   loadMultiBookBundle,
   renameBook,
   setActiveBook,
+  updateBookKind,
   upsertEntry,
 } from "./store";
 
@@ -103,6 +104,22 @@ describe("book separation", () => {
     renameBook(book2.id, "改名後");
     expect(loadBooks().find((b) => b.id === book2.id)?.name).toBe("改名後");
     expect(loadBooks().find((b) => b.id === "default")?.name).toBe("家計");
+  });
+
+  it("updateBookKind: 指定帳簿のkindだけ変わり loadBooks/getActiveBook に反映される", () => {
+    const book2 = createBook("サークルA", "circle");
+    setActiveBook(book2.id);
+    updateBookKind(book2.id, "business");
+    expect(loadBooks().find((b) => b.id === book2.id)?.kind).toBe("business");
+    expect(loadBooks().find((b) => b.id === "default")?.kind).toBe("household");
+    expect(getActiveBook().kind).toBe("business");
+  });
+
+  it("updateBookKind: 未知IDはno-op", () => {
+    createBook("サークルA", "circle");
+    const before = loadBooks();
+    updateBookKind("nonexistent-id", "business");
+    expect(loadBooks()).toEqual(before);
   });
 });
 

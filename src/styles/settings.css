@@ -142,6 +142,27 @@
   color: var(--text-subtle);
 }
 
+.settings-book-kind-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+
+.settings-book-kind-select {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.settings-book-kind-select:focus {
+  border-color: var(--primary);
+}
+
 .settings-checkbox-field {
   display: flex;
   align-items: center;
