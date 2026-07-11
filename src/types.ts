@@ -49,11 +49,36 @@ export interface JournalEntry {
   updatedAt: string; // ISO 8601
 }
 
-/** バックアップ/エクスポートに使う帳簿全体のバンドル */
+/** バックアップ/エクスポートに使う帳簿全体のバンドル (アクティブ帳簿単体のスナップショット) */
 export interface BooksBundle {
   v: 1;
   entries: JournalEntry[];
   customAccounts: Account[];
+  exportedAt: string; // ISO 8601
+}
+
+/** 帳簿の種別。標準勘定科目テンプレートの選択に使う */
+export type BookKind = "household" | "circle" | "business";
+
+/** 1つの組織/用途に対応する帳簿。全ドメインデータは帳簿単位で分離される */
+export interface Book {
+  id: string; // "default" または UUID
+  name: string; // 表示名 (例 "家計", "〇〇サークル")
+  kind: BookKind;
+  createdAt: string; // ISO 8601
+}
+
+/** 全帳簿バックアップ (booksBackupPublisher が publish するペイロード v2) */
+export interface BookBackup {
+  book: Book;
+  entries: JournalEntry[];
+  customAccounts: Account[];
+}
+
+/** バックアップ/エクスポートに使う全帳簿分のバンドル */
+export interface MultiBookBundle {
+  v: 2;
+  books: BookBackup[];
   exportedAt: string; // ISO 8601
 }
 
