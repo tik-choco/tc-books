@@ -9,8 +9,21 @@
 // read/write functions below resolve to the *active* book's namespaced keys
 // so existing callers (views) keep working unmodified. See ensureRegistry()
 // for the legacy (pre-multi-book) migration.
+//
+// Receipt draft images: the on-disk (localStorage) representation of a
+// ReceiptDraft never inlines the image data URL — it holds an `imageCid`
+// (+`imageMime`) pointing at bytes uploaded via mistClient's storage_add
+// (OPFS-backed, same-origin). Inline `imageDataUrl` is only read as a legacy
+// dual-read fallback for drafts written before this change; readDraftsRaw()
+// migrates any it finds to imageCid on first read (see uploadDraftImage/
+// hydrateDraft below). The *in-memory* ReceiptDraft type (types.ts) that
+// loadReceiptDrafts()/upsertReceiptDraft() expose to callers always carries a
+// resolved imageDataUrl — callers (ReceiptImport.tsx) are unaware of the CID
+// indirection.
 
 import type { Account, AccountType, Book, BookKind, BooksBundle, JournalEntry, JournalLine, MultiBookBundle, ReceiptDraft, ReceiptDraftForm } from "../types";
+import { bytesToDataUrl, dataUrlToBytes } from "./image";
+import { storageAdd, storageGet } from "./mistClient";
 
 // Legacy (pre-multi-book) unsuffixed keys. Still used as the *prefix* for the
 // namespaced per-book keys (`${LEGACY_ENTRIES_KEY}:${bookId}`) so
@@ -125,25 +138,46 @@ function sanitizeReceiptDraftForm(value: unknown): ReceiptDraftForm | null {
   return form;
 }
 
-function sanitizeReceiptDraft(value: unknown): ReceiptDraft | null {
+/**
+ * localStorage 上の永続化形式。imageDataUrl は旧形式 (画像インライン) との
+ * dual-read 用にのみ残る optional フィールド — 新規保存は必ず imageCid
+ * (+imageMime) を使う。呼び出し側 (ReceiptImport.tsx) が扱う ReceiptDraft
+ * (types.ts) とは別物: そちらは常に解決済みの imageDataUrl を持つ。
+ */
+interface StoredReceiptDraft {
+  id: string;
+  stage: ReceiptDraft["stage"];
+  imageName: string;
+  imageDataUrl?: string;
+  imageCid?: string;
+  imageMime?: string;
+  form: ReceiptDraftForm | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function sanitizeReceiptDraft(value: unknown): StoredReceiptDraft | null {
   if (!isRecord(value)) return null;
   const id = typeof value.id === "string" ? value.id : "";
   if (!id) return null;
-  const imageDataUrl = typeof value.imageDataUrl === "string" ? value.imageDataUrl : "";
-  if (!imageDataUrl) return null;
+  const imageDataUrl = typeof value.imageDataUrl === "string" && value.imageDataUrl ? value.imageDataUrl : "";
+  const imageCid = typeof value.imageCid === "string" && value.imageCid ? value.imageCid : "";
+  if (!imageDataUrl && !imageCid) return null;
   const stage = typeof value.stage === "string" && RECEIPT_DRAFT_STAGES.includes(value.stage) ? (value.stage as ReceiptDraft["stage"]) : "preview";
   const form = sanitizeReceiptDraftForm(value.form);
   const now = new Date().toISOString();
 
-  const draft: ReceiptDraft = {
+  const draft: StoredReceiptDraft = {
     id,
     stage: stage === "result" && form === null ? "preview" : stage,
     imageName: typeof value.imageName === "string" ? value.imageName : "",
-    imageDataUrl,
     form,
     createdAt: typeof value.createdAt === "string" ? value.createdAt : now,
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : now,
   };
+  if (imageDataUrl) draft.imageDataUrl = imageDataUrl;
+  if (imageCid) draft.imageCid = imageCid;
+  if (typeof value.imageMime === "string" && value.imageMime) draft.imageMime = value.imageMime;
   return draft;
 }
 
@@ -171,16 +205,90 @@ function readAccountsRaw(bookId: string): Account[] {
   }
 }
 
-function readDraftsRaw(bookId: string): ReceiptDraft[] {
+function readDraftsRawSync(bookId: string): StoredReceiptDraft[] {
   try {
     const raw = localStorage.getItem(draftsKey(bookId));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed) || !Array.isArray(parsed.drafts)) return [];
-    return parsed.drafts.map(sanitizeReceiptDraft).filter((d): d is ReceiptDraft => d !== null);
+    return parsed.drafts.map(sanitizeReceiptDraft).filter((d): d is StoredReceiptDraft => d !== null);
   } catch {
     return [];
   }
+}
+
+// Memoizes in-flight/completed storage_add uploads by data URL content so
+// that re-persisting a draft whose image hasn't changed (e.g. every debounced
+// form-field save) doesn't re-upload the same bytes each time. Content is
+// content-addressed anyway (same bytes -> same CID) so this is purely a perf
+// optimization, never a correctness concern; it's an in-memory cache only
+// (nothing persisted), so it can't grow across page loads.
+const draftImageUploadCache = new Map<string, Promise<{ cid: string; mime: string }>>();
+
+function uploadDraftImage(dataUrl: string): Promise<{ cid: string; mime: string }> {
+  let pending = draftImageUploadCache.get(dataUrl);
+  if (!pending) {
+    pending = (async () => {
+      const { bytes, mime } = dataUrlToBytes(dataUrl);
+      const cid = await storageAdd(bytes);
+      return { cid, mime };
+    })();
+    draftImageUploadCache.set(dataUrl, pending);
+  }
+  return pending;
+}
+
+/**
+ * One-time migration: any stored draft still holding an inline imageDataUrl
+ * (pre-CID format) gets its image uploaded via storage_add and rewritten to
+ * imageCid/imageMime. Never throws; a draft whose upload fails is left in its
+ * original (still fully readable via dual-read) inline form so no data is
+ * lost. Returns the migrated array and persists it if anything changed.
+ */
+async function readDraftsRaw(bookId: string): Promise<StoredReceiptDraft[]> {
+  const drafts = readDraftsRawSync(bookId);
+  let migrated = false;
+  const next = await Promise.all(
+    drafts.map(async (draft) => {
+      if (!draft.imageDataUrl || draft.imageCid) return draft;
+      try {
+        const { cid, mime } = await uploadDraftImage(draft.imageDataUrl);
+        migrated = true;
+        const rest: StoredReceiptDraft = { ...draft, imageCid: cid, imageMime: mime };
+        delete rest.imageDataUrl;
+        return rest;
+      } catch (error) {
+        console.warn(`tc-books: failed to migrate receipt draft image ${draft.id}`, error);
+        return draft;
+      }
+    }),
+  );
+  if (migrated) persistDrafts(bookId, next);
+  return next;
+}
+
+/** ReceiptDraft (呼び出し側向け・imageDataUrl解決済み) への変換。取得に失敗した場合はnull */
+async function hydrateDraft(stored: StoredReceiptDraft): Promise<ReceiptDraft | null> {
+  let imageDataUrl = stored.imageDataUrl ?? "";
+  if (!imageDataUrl && stored.imageCid) {
+    try {
+      const bytes = await storageGet(stored.imageCid);
+      imageDataUrl = bytesToDataUrl(bytes, stored.imageMime || "image/jpeg");
+    } catch (error) {
+      console.warn(`tc-books: failed to load receipt draft image ${stored.id}`, error);
+      return null;
+    }
+  }
+  if (!imageDataUrl) return null;
+  return {
+    id: stored.id,
+    stage: stored.stage,
+    imageName: stored.imageName,
+    imageDataUrl,
+    form: stored.form,
+    createdAt: stored.createdAt,
+    updatedAt: stored.updatedAt,
+  };
 }
 
 function notifyChanged(): void {
@@ -209,7 +317,7 @@ function persistAccounts(bookId: string, accounts: Account[]): void {
   }
 }
 
-function persistDrafts(bookId: string, drafts: ReceiptDraft[]): void {
+function persistDrafts(bookId: string, drafts: StoredReceiptDraft[]): void {
   try {
     localStorage.setItem(draftsKey(bookId), JSON.stringify({ v: 1, drafts }));
     notifyChanged();
@@ -363,31 +471,56 @@ export function deleteCustomAccount(id: string): void {
   persistAccounts(bookId, existing.filter((a) => a.id !== id));
 }
 
-function sortDraftsByUpdatedAtDesc(drafts: ReceiptDraft[]): ReceiptDraft[] {
+function sortDraftsByUpdatedAtDesc<T extends { updatedAt: string }>(drafts: T[]): T[] {
   return [...drafts].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
 }
 
-/** updatedAt降順 */
-export function loadReceiptDrafts(): ReceiptDraft[] {
-  return sortDraftsByUpdatedAtDesc(readDraftsRaw(getActiveBookId()));
+/** updatedAt降順。各下書きの画像は(旧形式ならインラインをそのまま、新形式ならstorage_getで)解決済み */
+export async function loadReceiptDrafts(): Promise<ReceiptDraft[]> {
+  const stored = sortDraftsByUpdatedAtDesc(await readDraftsRaw(getActiveBookId()));
+  const hydrated = await Promise.all(stored.map(hydrateDraft));
+  return hydrated.filter((d): d is ReceiptDraft => d !== null);
 }
 
-export function upsertReceiptDraft(draft: ReceiptDraft): void {
+/**
+ * 画像は毎回 storage_add でCID化してから imageCid(+imageMime) のみ永続化する
+ * (imageDataUrlをlocalStorageにインラインで書くことはしない)。アップロードに
+ * 失敗した場合は既存の下書きに触れず何もしない (console.warnのみ、データ喪失なし)。
+ */
+export async function upsertReceiptDraft(draft: ReceiptDraft): Promise<void> {
   const bookId = getActiveBookId();
-  const existing = readDraftsRaw(bookId);
+  let uploaded: { cid: string; mime: string };
+  try {
+    uploaded = await uploadDraftImage(draft.imageDataUrl);
+  } catch (error) {
+    console.warn(`tc-books: failed to upload receipt draft image ${draft.id}`, error);
+    return;
+  }
+
+  const existing = await readDraftsRaw(bookId);
+  const stored: StoredReceiptDraft = {
+    id: draft.id,
+    stage: draft.stage,
+    imageName: draft.imageName,
+    imageCid: uploaded.cid,
+    imageMime: uploaded.mime,
+    form: draft.form,
+    createdAt: draft.createdAt,
+    updatedAt: draft.updatedAt,
+  };
   const idx = existing.findIndex((d) => d.id === draft.id);
   if (idx >= 0) {
-    existing[idx] = draft;
+    existing[idx] = stored;
   } else {
-    existing.push(draft);
+    existing.push(stored);
   }
   const capped = sortDraftsByUpdatedAtDesc(existing).slice(0, MAX_DRAFTS);
   persistDrafts(bookId, capped);
 }
 
-export function deleteReceiptDraft(id: string): void {
+export async function deleteReceiptDraft(id: string): Promise<void> {
   const bookId = getActiveBookId();
-  const existing = readDraftsRaw(bookId);
+  const existing = await readDraftsRaw(bookId);
   persistDrafts(bookId, existing.filter((d) => d.id !== id));
 }
 
