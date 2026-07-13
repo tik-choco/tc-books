@@ -104,8 +104,8 @@ export function ReceiptImportButton(props: {
   // 現在の世代と一致しなければ無視する (stale result 対策)
   const scanSeqRef = useRef(0);
 
-  function refreshDrafts() {
-    setDrafts(loadReceiptDrafts());
+  async function refreshDrafts() {
+    setDrafts(await loadReceiptDrafts());
   }
 
   function clearSaveTimer() {
@@ -118,7 +118,7 @@ export function ReceiptImportButton(props: {
   function persistDraft(draftStage: ReceiptDraft["stage"], formValue: FormState | null) {
     const draft = draftRef.current;
     if (!draft) return;
-    upsertReceiptDraft({
+    void upsertReceiptDraft({
       id: draft.id,
       stage: draftStage,
       imageName: draft.imageName,
@@ -155,7 +155,7 @@ export function ReceiptImportButton(props: {
     setIsImageZoomed(false);
     setDraftId(null);
     draftRef.current = null;
-    refreshDrafts();
+    void refreshDrafts();
   }
 
   function openModal() {
@@ -186,7 +186,7 @@ export function ReceiptImportButton(props: {
       const compressedDataUrl = await compressImageDataUrl(loaded.dataUrl);
       draftRef.current = { id, imageName: loaded.name, compressedDataUrl, createdAt: now };
       setDraftId(id);
-      upsertReceiptDraft({
+      void upsertReceiptDraft({
         id,
         stage: "preview",
         imageName: loaded.name,
@@ -221,9 +221,9 @@ export function ReceiptImportButton(props: {
     }
   }
 
-  function handleDeleteDraft(id: string) {
-    deleteReceiptDraft(id);
-    refreshDrafts();
+  async function handleDeleteDraft(id: string) {
+    await deleteReceiptDraft(id);
+    await refreshDrafts();
   }
 
   function onPickFile(event: JSX.TargetedEvent<HTMLInputElement>) {
@@ -337,7 +337,7 @@ export function ReceiptImportButton(props: {
 
     clearSaveTimer();
     pendingSaveRef.current = null;
-    if (draftId) deleteReceiptDraft(draftId);
+    if (draftId) void deleteReceiptDraft(draftId);
     draftRef.current = null;
     setDraftId(null);
     setStage("done");
@@ -425,7 +425,7 @@ export function ReceiptImportButton(props: {
                             type="button"
                             class="ocr-icon-btn"
                             aria-label="下書きを削除"
-                            onClick={() => handleDeleteDraft(draft.id)}
+                            onClick={() => void handleDeleteDraft(draft.id)}
                           >
                             <Trash2 size={16} />
                           </button>

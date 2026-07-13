@@ -37,6 +37,34 @@ export function readImageFile(file: File): Promise<ImageInput> {
   });
 }
 
+/**
+ * data URL (`data:<mime>;base64,<data>`) を MIME を保持したまま Uint8Array に
+ * デコードする。mistlib storage_add へ渡すバイト列を作るために使う
+ * (下書き画像をlocalStorageへインライン保存する代わりにOPFSへ逃がす経路)。
+ */
+export function dataUrlToBytes(dataUrl: string): { bytes: Uint8Array; mime: string } {
+  const commaIndex = dataUrl.indexOf(",");
+  if (!dataUrl.startsWith("data:") || commaIndex < 0) {
+    throw new Error("不正な画像データです。");
+  }
+  const header = dataUrl.slice(5, commaIndex); // "data:" の後、"," の前
+  const mime = header.split(";")[0] || "application/octet-stream";
+  const binary = atob(dataUrl.slice(commaIndex + 1));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return { bytes, mime };
+}
+
+/** dataUrlToBytesの逆変換。mistlib storage_getで取得したバイト列を表示可能なdata URLに戻す */
+export function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+
 /** 下書き保存用に画像を縮小する、失敗時は元のdataUrlを返す */
 export function compressImageDataUrl(dataUrl: string, maxDim = 1600, quality = 0.8): Promise<string> {
   return new Promise((resolve) => {
