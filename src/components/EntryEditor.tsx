@@ -125,9 +125,10 @@ export function EntryEditor(props: {
       if (suggestion.description !== null) setDescription(suggestion.description);
       if (suggestion.date !== null) setDate(suggestion.date);
 
-      if (suggestion.debitAccountId === null && suggestion.creditAccountId === null) {
-        setAiError("科目を推定できませんでした");
-      } else {
+      const noAccounts = suggestion.debitAccountId === null && suggestion.creditAccountId === null;
+      // 科目が推定できなくても金額が読めていれば行に反映する（科目は既存選択を維持）。
+      // 何も反映できるものが無いときだけ行を触らない。
+      if (!noAccounts || suggestion.amount !== null) {
         const amountText = suggestion.amount !== null ? String(suggestion.amount) : "";
         setLines((prev) => {
           const fallbackDebit = prev[0]?.accountId ?? accounts[0]?.id ?? "";
@@ -137,6 +138,9 @@ export function EntryEditor(props: {
             { accountId: suggestion.creditAccountId ?? fallbackCredit, debit: "", credit: amountText },
           ];
         });
+      }
+      if (noAccounts) {
+        setAiError("科目を推定できませんでした。読み取れた項目のみ反映したので、科目は手動で選択してください");
       }
     } catch (err) {
       setAiError(err instanceof Error ? err.message : String(err));
