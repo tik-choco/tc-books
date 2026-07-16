@@ -3,11 +3,12 @@
 // 日本語メッセージを表示し、無ければ upsertEntry() して onClose() する。
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { JSX } from "preact";
-import { Plus, Save, Trash2, X } from "lucide-preact";
+import { Plus, Save, Sparkles, Trash2, X } from "lucide-preact";
 import type { Account, AccountType, JournalEntry, JournalLine } from "../types";
 import { activeAccounts } from "../lib/accounts";
 import { newEntryId, nowIso, todayYmd, validateEntry } from "../lib/journal";
 import { upsertEntry } from "../lib/store";
+import { suggestEntry } from "../lib/suggest";
 import "../styles/journal.css";
 
 interface DraftLine {
@@ -69,6 +70,9 @@ export function EntryEditor(props: {
   const [memo, setMemo] = useState(entry?.memo ?? "");
   const [lines, setLines] = useState<DraftLine[]>(() => initialLines(entry, accounts));
   const [errors, setErrors] = useState<string[]>([]);
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const pointerDownOnOverlay = useRef(false);
 
   useEffect(() => {
@@ -105,6 +109,40 @@ export function EntryEditor(props: {
 
   function removeLine(index: number) {
     setLines((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+  }
+
+  async function handleAiSuggest() {
+    if (!aiText.trim() || aiLoading) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const suggestion = await suggestEntry({
+        text: aiText,
+        today: todayYmd(),
+        accounts: accounts.map((a) => ({ id: a.id, name: a.name, type: a.type })),
+      });
+
+      if (suggestion.description !== null) setDescription(suggestion.description);
+      if (suggestion.date !== null) setDate(suggestion.date);
+
+      if (suggestion.debitAccountId === null && suggestion.creditAccountId === null) {
+        setAiError("科目を推定できませんでした");
+      } else {
+        const amountText = suggestion.amount !== null ? String(suggestion.amount) : "";
+        setLines((prev) => {
+          const fallbackDebit = prev[0]?.accountId ?? accounts[0]?.id ?? "";
+          const fallbackCredit = prev[1]?.accountId ?? fallbackDebit;
+          return [
+            { accountId: suggestion.debitAccountId ?? fallbackDebit, debit: amountText, credit: "" },
+            { accountId: suggestion.creditAccountId ?? fallbackCredit, debit: "", credit: amountText },
+          ];
+        });
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   const debitTotal = lines.reduce((sum, l) => sum + toAmount(l.debit), 0);
@@ -165,6 +203,28 @@ export function EntryEditor(props: {
         </div>
 
         <div class="ee-body">
+          <div class="ee-ai">
+            <div class="ee-ai-row">
+              <input
+                class="ee-ai-input"
+                value={aiText}
+                placeholder="例: 昨日セブンでコーヒー300円を現金で"
+                onInput={(e) => setAiText(e.currentTarget.value)}
+                disabled={aiLoading}
+              />
+              <button
+                type="button"
+                class="ee-btn ee-btn-ghost ee-ai-btn"
+                disabled={!aiText.trim() || aiLoading}
+                onClick={handleAiSuggest}
+              >
+                <Sparkles size={14} /> AIで入力
+              </button>
+            </div>
+            {aiLoading ? <p class="ee-ai-status">AIが考えています…</p> : null}
+            {aiError ? <p class="ee-ai-error">{aiError}</p> : null}
+          </div>
+
           <div class="ee-field-row">
             <label class="ee-field">
               <span>日付</span>

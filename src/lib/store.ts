@@ -21,7 +21,7 @@
 // resolved imageDataUrl — callers (ReceiptImport.tsx) are unaware of the CID
 // indirection.
 
-import type { Account, AccountType, Book, BookKind, BooksBundle, JournalEntry, JournalLine, MultiBookBundle, ReceiptDraft, ReceiptDraftForm } from "../types";
+import type { Account, AccountType, Book, BookKind, BooksBundle, IssuedReceipt, JournalEntry, JournalLine, MultiBookBundle, ReceiptDraft, ReceiptDraftForm } from "../types";
 import { bytesToDataUrl, dataUrlToBytes } from "./image";
 import { storageAdd, storageGet } from "./mistClient";
 
@@ -33,6 +33,11 @@ const LEGACY_ACCOUNTS_KEY = "tc-books:accounts-v1";
 const LEGACY_DRAFTS_KEY = "tc-books:receipt-drafts-v1";
 const BOOKS_KEY = "tc-books:books-v1";
 const CHANGE_EVENT = "tc-books-data-changed";
+
+// 領収書発行 (receipt issuance). No legacy unsuffixed data ever existed for
+// these, so they are not part of migrateLegacyDataIfPresent.
+const ISSUED_RECEIPTS_KEY = "tc-books:issued-receipts-v1";
+const RECEIPT_ISSUER_KEY = "tc-books:receipt-issuer-v1";
 
 const DEFAULT_BOOK_ID = "default";
 const BOOK_KINDS: BookKind[] = ["household", "circle", "business"];
@@ -46,13 +51,19 @@ function accountsKey(bookId: string): string {
 function draftsKey(bookId: string): string {
   return `${LEGACY_DRAFTS_KEY}:${bookId}`;
 }
+function issuedReceiptsKey(bookId: string): string {
+  return `${ISSUED_RECEIPTS_KEY}:${bookId}`;
+}
+function receiptIssuerKey(bookId: string): string {
+  return `${RECEIPT_ISSUER_KEY}:${bookId}`;
+}
 
 const MAX_DRAFTS = 10;
 const RECEIPT_DRAFT_STAGES = ["preview", "result"];
 const RECEIPT_DRAFT_FORM_FIELDS = ["date", "vendor", "amount", "categoryId", "methodId", "memo"] as const;
 
 const ACCOUNT_TYPES: AccountType[] = ["asset", "liability", "equity", "revenue", "expense"];
-const ENTRY_SOURCES = ["manual", "quick", "ocr"];
+const ENTRY_SOURCES = ["manual", "quick", "ocr", "receipt"];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -109,6 +120,28 @@ function sanitizeAccount(value: unknown): Account | null {
   if (typeof value.isCustom === "boolean") account.isCustom = value.isCustom;
   if (typeof value.archived === "boolean") account.archived = value.archived;
   return account;
+}
+
+function sanitizeIssuedReceipt(value: unknown): IssuedReceipt | null {
+  if (!isRecord(value)) return null;
+  const id = typeof value.id === "string" ? value.id : "";
+  if (!id) return null;
+  const issueNo = typeof value.issueNo === "number" && Number.isFinite(value.issueNo) ? Math.trunc(value.issueNo) : 0;
+  if (issueNo < 1) return null;
+  const amount = typeof value.amount === "number" && Number.isFinite(value.amount) ? Math.trunc(value.amount) : 0;
+
+  const receipt: IssuedReceipt = {
+    id,
+    issueNo,
+    amount,
+    payerName: typeof value.payerName === "string" ? value.payerName : "",
+    issueDate: typeof value.issueDate === "string" ? value.issueDate : "",
+    note: typeof value.note === "string" ? value.note : "",
+    issuerName: typeof value.issuerName === "string" ? value.issuerName : "",
+    createdAt: typeof value.createdAt === "string" ? value.createdAt : new Date().toISOString(),
+  };
+  if (typeof value.journalEntryId === "string" && value.journalEntryId) receipt.journalEntryId = value.journalEntryId;
+  return receipt;
 }
 
 function sanitizeBook(value: unknown): Book | null {
@@ -202,6 +235,30 @@ function readAccountsRaw(bookId: string): Account[] {
     return parsed.accounts.map(sanitizeAccount).filter((a): a is Account => a !== null);
   } catch {
     return [];
+  }
+}
+
+function readIssuedReceiptsRaw(bookId: string): IssuedReceipt[] {
+  try {
+    const raw = localStorage.getItem(issuedReceiptsKey(bookId));
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed) || !Array.isArray(parsed.receipts)) return [];
+    return parsed.receipts.map(sanitizeIssuedReceipt).filter((r): r is IssuedReceipt => r !== null);
+  } catch {
+    return [];
+  }
+}
+
+function readReceiptIssuerNameRaw(bookId: string): string {
+  try {
+    const raw = localStorage.getItem(receiptIssuerKey(bookId));
+    if (!raw) return "";
+    const parsed: unknown = JSON.parse(raw);
+    if (!isRecord(parsed) || typeof parsed.name !== "string") return "";
+    return parsed.name;
+  } catch {
+    return "";
   }
 }
 
@@ -323,6 +380,24 @@ function persistDrafts(bookId: string, drafts: StoredReceiptDraft[]): void {
     notifyChanged();
   } catch (error) {
     console.warn("tc-books: failed to persist receipt drafts", error);
+  }
+}
+
+function persistIssuedReceipts(bookId: string, receipts: IssuedReceipt[]): void {
+  try {
+    localStorage.setItem(issuedReceiptsKey(bookId), JSON.stringify({ v: 1, receipts }));
+    notifyChanged();
+  } catch (error) {
+    console.warn("tc-books: failed to persist issued receipts", error);
+  }
+}
+
+function persistReceiptIssuerName(bookId: string, name: string): void {
+  try {
+    localStorage.setItem(receiptIssuerKey(bookId), JSON.stringify({ v: 1, name }));
+    notifyChanged();
+  } catch (error) {
+    console.warn("tc-books: failed to persist receipt issuer name", error);
   }
 }
 
@@ -524,6 +599,51 @@ export async function deleteReceiptDraft(id: string): Promise<void> {
   persistDrafts(bookId, existing.filter((d) => d.id !== id));
 }
 
+function sortIssuedReceiptsByIssueNoDesc(receipts: IssuedReceipt[]): IssuedReceipt[] {
+  return [...receipts].sort((a, b) => b.issueNo - a.issueNo);
+}
+
+/** アクティブ帳簿、issueNo降順 */
+export function loadIssuedReceipts(): IssuedReceipt[] {
+  return sortIssuedReceiptsByIssueNoDesc(readIssuedReceiptsRaw(getActiveBookId()));
+}
+
+/** id一致で置換、なければ追加 */
+export function upsertIssuedReceipt(receipt: IssuedReceipt): void {
+  const bookId = getActiveBookId();
+  const existing = readIssuedReceiptsRaw(bookId);
+  const idx = existing.findIndex((r) => r.id === receipt.id);
+  if (idx >= 0) {
+    existing[idx] = receipt;
+  } else {
+    existing.push(receipt);
+  }
+  persistIssuedReceipts(bookId, existing);
+}
+
+/** 紐づく仕訳は消さない (呼び出し側の責務でもない) */
+export function deleteIssuedReceipt(id: string): void {
+  const bookId = getActiveBookId();
+  const existing = readIssuedReceiptsRaw(bookId);
+  persistIssuedReceipts(bookId, existing.filter((r) => r.id !== id));
+}
+
+/** max(issueNo)+1、1件もなければ1 */
+export function nextReceiptIssueNo(): number {
+  const existing = readIssuedReceiptsRaw(getActiveBookId());
+  if (existing.length === 0) return 1;
+  return Math.max(...existing.map((r) => r.issueNo)) + 1;
+}
+
+/** 保存が無ければ "" */
+export function loadReceiptIssuerName(): string {
+  return readReceiptIssuerNameRaw(getActiveBookId());
+}
+
+export function saveReceiptIssuerName(name: string): void {
+  persistReceiptIssuerName(getActiveBookId(), name);
+}
+
 /** entries/accounts/drafts/レジストリのいずれかの変化でも発火。unsubscribeを返す */
 export function subscribeBooks(cb: () => void): () => void {
   function onStorage(event: StorageEvent) {
@@ -532,7 +652,9 @@ export function subscribeBooks(cb: () => void): () => void {
       event.key === BOOKS_KEY ||
       event.key.startsWith(LEGACY_ENTRIES_KEY) ||
       event.key.startsWith(LEGACY_ACCOUNTS_KEY) ||
-      event.key.startsWith(LEGACY_DRAFTS_KEY)
+      event.key.startsWith(LEGACY_DRAFTS_KEY) ||
+      event.key.startsWith(ISSUED_RECEIPTS_KEY) ||
+      event.key.startsWith(RECEIPT_ISSUER_KEY)
     ) {
       cb();
     }
@@ -636,6 +758,8 @@ export function deleteBook(id: string): void {
     localStorage.removeItem(entriesKey(id));
     localStorage.removeItem(accountsKey(id));
     localStorage.removeItem(draftsKey(id));
+    localStorage.removeItem(issuedReceiptsKey(id));
+    localStorage.removeItem(receiptIssuerKey(id));
   } catch (error) {
     console.warn("tc-books: failed to remove deleted book's data", error);
   }

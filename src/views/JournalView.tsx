@@ -16,6 +16,7 @@ const SOURCE_LABEL: Record<EntrySource, string> = {
   manual: "手入力",
   quick: "かんたん",
   ocr: "OCR",
+  receipt: "領収書",
 };
 
 type EditorState = { mode: "new" } | { mode: "edit"; entry: JournalEntry };

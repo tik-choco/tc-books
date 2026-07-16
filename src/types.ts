@@ -4,7 +4,7 @@
 // Money is always an integer amount of yen. Dates are "YYYY-MM-DD" strings,
 // months are "YYYY-MM", timestamps are ISO 8601.
 
-export type MainTab = "home" | "journal" | "ledger" | "reports" | "settings";
+export type MainTab = "home" | "journal" | "ledger" | "reports" | "receipts" | "settings";
 
 /** 勘定科目の5分類。正残高: asset/expense=借方, liability/equity/revenue=貸方 */
 export type AccountType = "asset" | "liability" | "equity" | "revenue" | "expense";
@@ -34,7 +34,8 @@ export interface JournalLine {
   credit: number;
 }
 
-export type EntrySource = "manual" | "quick" | "ocr";
+/** 仕訳の出所。"receipt" は領収書発行時の「仕訳にも記録」で作成されたもの */
+export type EntrySource = "manual" | "quick" | "ocr" | "receipt";
 
 /** 複式簿記の仕訳。常に 借方合計 === 貸方合計 を満たす */
 export interface JournalEntry {
@@ -127,6 +128,30 @@ export interface ReceiptDraftForm {
   categoryId: string;
   methodId: string;
   memo: string;
+}
+
+/** 領収書発行フォームの入力値。id・連番・作成時刻は発行時に採番される */
+export interface ReceiptIssueInput {
+  /** 宛名。表示時に "様" を付ける本体部分 (例 "山田太郎")。"上様" もそのまま入る */
+  payerName: string;
+  /** 税込金額 (整数円) */
+  amount: number;
+  /** 発行日 */
+  issueDate: string; // YYYY-MM-DD
+  /** 但し書き (例 "お品代として") */
+  note: string;
+  /** 発行者名 (自分側の氏名/屋号)。前回発行時の値が保存されプレフィルされる */
+  issuerName: string;
+}
+
+/** 発行済み領収書。帳簿単位で保存され、履歴から再印刷/削除できる */
+export interface IssuedReceipt extends ReceiptIssueInput {
+  id: string;
+  /** 帳簿内の発行連番 (1始まり)。表示形式は formatReceiptNo() が決める */
+  issueNo: number;
+  /** 「売上として仕訳にも記録」で作成した仕訳のid (作成しなかった場合は未設定) */
+  journalEntryId?: string;
+  createdAt: string; // ISO 8601
 }
 
 /** 領収書読み取りの下書き。閉じても再開できるよう自動保存される */
