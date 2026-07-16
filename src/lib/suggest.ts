@@ -147,11 +147,12 @@ function buildSuggestSystemPrompt(input: EntrySuggestionInput): string {
     "Reply with ONLY the JSON object: the first character of your reply must be `{` and the last character must be `}`. No code fences, no explanations, no commentary, matching exactly this schema:",
     '{"description":string|null,"date":"YYYY-MM-DD"|null,"amount":integer|null,"debitAccountId":string|null,"creditAccountId":string|null}',
     "Double-entry direction: for an expense, debitAccountId is the expense account and creditAccountId is the payment method (an asset or liability account). For income/revenue received, debitAccountId is the account that received the money (an asset account) and creditAccountId is the revenue account.",
-    `Choose debitAccountId and creditAccountId ONLY from this list of candidate accounts (format is "id"(name/type)): ${accountList || "(no candidates provided)"}. Use the exact id string. If no candidate is a confident match, use null.`,
+    `Choose debitAccountId and creditAccountId ONLY from this list of candidate accounts (format is "id"(name/type)): ${accountList || "(no candidates provided)"}. Use the exact id string.`,
+    "For the accounts, always prefer the CLOSEST reasonable candidate over null: when the text describes spending money, pick the nearest expense candidate even if it is not a perfect fit (falling back to a generic one like 雑費/その他 when nothing specific matches), and likewise the nearest revenue candidate for money received. If no payment method is mentioned, assume cash (現金) when such a candidate exists. Use null for an account only when the text does not describe a money transaction at all.",
     `Today's date (basis for resolving relative dates like "昨日" / "先週金曜") is ${input.today}. Resolve any relative date in the text to an absolute YYYY-MM-DD date. If the text doesn't mention a date at all, use null.`,
     "amount must be integer yen (no currency symbols, no decimals, no thousands separators). Return null if it cannot be read confidently.",
     "description is a concise Japanese summary (摘要) of the transaction, including the vendor/item name where mentioned.",
-    "Return null for any field you cannot determine confidently. Do not guess.",
+    "Return null for date/amount when they cannot be read confidently — do not guess numbers or dates.",
   ].join(" ");
 }
 

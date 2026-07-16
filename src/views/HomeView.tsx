@@ -134,14 +134,15 @@ export function HomeView(): JSX.Element {
         (a) => a.type === "asset" || a.type === "liability",
       );
 
-      if (!categoryAccount) {
-        setAiError("カテゴリを推定できませんでした");
-        return;
-      }
-
       setFormError(null);
-      setKind(categoryAccount.type === "expense" ? "expense" : "income");
-      setCategoryId(categoryAccount.id);
+      // カテゴリが推定できなくても、読み取れた項目（支払い方法・金額・日付・摘要）は
+      // 反映して、カテゴリだけ手動選択を促す。
+      if (categoryAccount) {
+        setKind(categoryAccount.type === "expense" ? "expense" : "income");
+        setCategoryId(categoryAccount.id);
+      } else {
+        setAiError("カテゴリを推定できませんでした。読み取れた項目のみ反映したので、カテゴリは手動で選んでください");
+      }
       if (methodAccount) setMethodId(methodAccount.id);
       if (suggestion.amount !== null) setAmount(String(suggestion.amount));
       if (suggestion.date !== null) setDate(suggestion.date);
