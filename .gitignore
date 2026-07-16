@@ -33,3 +33,4 @@ dist-ssr
 
 # Internal build specs — kept local only (public repository)
 docs/
+CLAUDE.md

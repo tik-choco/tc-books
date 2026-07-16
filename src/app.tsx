@@ -6,6 +6,7 @@ import {
   Moon,
   NotebookPen,
   NotebookText,
+  ReceiptJapaneseYen,
   Settings,
   Sun,
 } from "lucide-preact";
@@ -17,6 +18,7 @@ import { HomeView } from "./views/HomeView";
 import { JournalView } from "./views/JournalView";
 import { LedgerView } from "./views/LedgerView";
 import { ReportsView } from "./views/ReportsView";
+import { ReceiptsView } from "./views/ReceiptsView";
 import { SettingsView } from "./views/SettingsView";
 import { BookSwitcher } from "./components/BookSwitcher";
 import { Onboarding } from "./components/Onboarding";
@@ -27,6 +29,7 @@ const TABS: { id: MainTab; label: string; icon: typeof House }[] = [
   { id: "journal", label: "仕訳帳", icon: NotebookPen },
   { id: "ledger", label: "元帳", icon: BookOpenText },
   { id: "reports", label: "レポート", icon: ChartColumnBig },
+  { id: "receipts", label: "領収書", icon: ReceiptJapaneseYen },
   { id: "settings", label: "設定", icon: Settings },
 ];
 
@@ -103,6 +106,7 @@ export function App() {
           {tab === "journal" && <JournalView />}
           {tab === "ledger" && <LedgerView />}
           {tab === "reports" && <ReportsView />}
+          {tab === "receipts" && <ReceiptsView />}
           {tab === "settings" && <SettingsView />}
         </div>
       </main>

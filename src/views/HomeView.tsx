@@ -12,6 +12,7 @@ import {
   History,
   PackageOpen,
   Scale,
+  Sparkles,
   TrendingDown,
   TrendingUp,
 } from "lucide-preact";
@@ -27,6 +28,8 @@ import { buildQuickEntry, entryDebitTotal, todayYmd, validateEntry } from "../li
 import type { QuickEntryInput } from "../lib/journal";
 import { monthlySummary } from "../lib/reports";
 import { ReceiptImportButton } from "../components/ReceiptImport";
+import { suggestEntry } from "../lib/suggest";
+import type { SuggestAccountOption } from "../lib/suggest";
 import "../styles/home.css";
 
 /** "YYYY-MM" を delta ヶ月分ずらす */
@@ -90,6 +93,8 @@ export function HomeView(): JSX.Element {
   const [date, setDate] = useState<string>(() => todayYmd());
   const [memo, setMemo] = useState<string>("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const categories = kind === "expense" ? quickExpenseCategories() : quickIncomeCategories();
   const methods = paymentMethods();
@@ -103,6 +108,49 @@ export function HomeView(): JSX.Element {
   function selectKind(next: "expense" | "income") {
     setKind(next);
     setCategoryId("");
+  }
+
+  async function handleAiAssist() {
+    const text = memo.trim();
+    if (!text || aiLoading) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const accounts: SuggestAccountOption[] = [
+        ...quickExpenseCategories(),
+        ...quickIncomeCategories(),
+        ...paymentMethods(),
+      ].map((a) => ({ id: a.id, name: a.name, type: a.type }));
+      const suggestion = await suggestEntry({ text, today: todayYmd(), accounts });
+
+      const candidates = [suggestion.debitAccountId, suggestion.creditAccountId]
+        .filter((id): id is string => id !== null)
+        .map((id) => accountById(id))
+        .filter((a): a is NonNullable<typeof a> => a !== undefined);
+      const categoryAccount = candidates.find(
+        (a) => a.type === "expense" || a.type === "revenue",
+      );
+      const methodAccount = candidates.find(
+        (a) => a.type === "asset" || a.type === "liability",
+      );
+
+      if (!categoryAccount) {
+        setAiError("カテゴリを推定できませんでした");
+        return;
+      }
+
+      setFormError(null);
+      setKind(categoryAccount.type === "expense" ? "expense" : "income");
+      setCategoryId(categoryAccount.id);
+      if (methodAccount) setMethodId(methodAccount.id);
+      if (suggestion.amount !== null) setAmount(String(suggestion.amount));
+      if (suggestion.date !== null) setDate(suggestion.date);
+      if (suggestion.description !== null) setMemo(suggestion.description);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : "AIによる振り分けに失敗しました");
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   function handleSubmit(e: JSX.TargetedEvent<HTMLFormElement>) {
@@ -296,9 +344,25 @@ export function HomeView(): JSX.Element {
               type="text"
               placeholder="例）スーパーで買い物"
               value={memo}
-              onInput={(e) => setMemo(e.currentTarget.value)}
+              onInput={(e) => {
+                setMemo(e.currentTarget.value);
+                setAiError(null);
+              }}
             />
           </label>
+
+          <div class="home-ai-row">
+            <button
+              type="button"
+              class={`home-ai-btn${aiLoading ? " home-ai-btn-loading" : ""}`}
+              disabled={aiLoading || !memo.trim()}
+              onClick={handleAiAssist}
+            >
+              <Sparkles size={16} />
+              <span>{aiLoading ? "AIが考えています…" : "AIで振り分け"}</span>
+            </button>
+          </div>
+          {aiError && <p class="home-form-error">{aiError}</p>}
 
           {formError && <p class="home-form-error">{formError}</p>}
 

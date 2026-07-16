@@ -1,0 +1,640 @@
+/* ReceiptsView — 領収書発行ビュー（履歴テーブル・発行フォーム・印刷プレビュー）。
+   画面表示部分は src/index.css のトークンのみを使用し、クラス名は rv-
+   （ReceiptsView）で名前空間を切っている。
+   .receipt-print-sheet だけは唯一の例外（docs/CONTRACTS.md 記載）:
+   物理的な紙の書類を模すため、ライト/ダーク双方・印刷時に常に同じ見た目になる
+   よう白背景・黒に近い文字色をハードコードしている。 */
+
+.rv-view {
+  padding: var(--space-5);
+}
+
+.rv-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+/* --- Toolbar ------------------------------------------------------------- */
+
+.rv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.rv-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rv-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.rv-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-subtle);
+}
+
+.rv-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rv-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.rv-btn-primary {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.rv-btn-primary:hover {
+  background: var(--primary-hover);
+}
+
+.rv-btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.rv-btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.rv-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.rv-icon-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.rv-icon-btn--danger:hover {
+  color: var(--danger-text);
+  border-color: var(--danger-border);
+  background: var(--danger-soft);
+}
+
+.rv-row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* --- History table --------------------------------------------------------- */
+
+.rv-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.rv-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+}
+
+.rv-table th {
+  position: sticky;
+  top: 0;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-subtle);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.rv-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.rv-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.rv-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.rv-no {
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-date {
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.rv-note-cell {
+  color: var(--text-muted);
+  min-width: 140px;
+}
+
+.rv-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--credit-soft);
+  color: var(--credit);
+}
+
+.rv-badge--none {
+  background: transparent;
+  color: var(--text-subtle);
+  font-weight: 400;
+}
+
+/* --- Empty state ----------------------------------------------------------- */
+
+.rv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-l);
+  color: var(--text-subtle);
+  text-align: center;
+}
+
+.rv-empty-title {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.rv-empty-sub {
+  font-size: 0.88rem;
+  color: var(--text-subtle);
+}
+
+/* ============================================================
+   Modal (issue form / print preview) — mirrors EntryEditor's ee- conventions
+   ============================================================ */
+
+.rv-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: var(--scrim);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: rv-overlay-in 160ms var(--ease-out);
+}
+
+@keyframes rv-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.rv-panel {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-3);
+  animation: rv-panel-in 220ms var(--ease-out);
+}
+
+.rv-panel--wide {
+  max-width: 720px;
+}
+
+@keyframes rv-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-overlay,
+  .rv-panel {
+    animation-duration: 1ms !important;
+  }
+}
+
+.rv-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border);
+}
+
+.rv-modal-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.rv-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+
+.rv-close:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.rv-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+.rv-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* --- Form fields ------------------------------------------------------------ */
+
+.rv-field-row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.rv-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.rv-field--grow {
+  flex: 1;
+}
+
+.rv-field input,
+.rv-field select {
+  font: inherit;
+  font-weight: 400;
+  color: var(--text);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+
+.rv-field input:focus-visible,
+.rv-field select:focus-visible {
+  border-color: var(--primary-border);
+}
+
+.rv-payer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.rv-payer-row .rv-field {
+  flex: 1;
+}
+
+.rv-inline-btn {
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rv-inline-btn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.rv-checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.rv-checkbox-field input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.rv-journal-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+
+.rv-errors {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-m);
+  background: var(--danger-soft);
+  color: var(--danger-text);
+  font-size: 0.85rem;
+  list-style: disc;
+  list-style-position: inside;
+}
+
+/* --- Print preview modal body ----------------------------------------------- */
+
+.rv-preview-body {
+  align-items: center;
+  background: var(--surface-2);
+}
+
+/* ============================================================
+   The printable receipt sheet — hardcoded "paper" look (documented
+   exception to the token-only rule; must read identically in light/dark
+   theme and in print, since it represents a physical document).
+   ============================================================ */
+
+.receipt-print-sheet {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 40px 44px;
+  background: #ffffff;
+  color: #171717;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  box-shadow: var(--shadow-2);
+  font-family: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", serif;
+}
+
+.rps-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: 28px;
+}
+
+.rps-title {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  color: #171717;
+}
+
+.rps-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: #444444;
+  white-space: nowrap;
+}
+
+.rps-payer {
+  padding-bottom: 8px;
+  margin-bottom: 24px;
+  border-bottom: 1.5px solid #171717;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #171717;
+}
+
+.rps-amount-box {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  border: 2px solid #171717;
+  border-radius: 4px;
+  background: #fafafa;
+}
+
+.rps-amount-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #444444;
+}
+
+.rps-amount-value {
+  flex: 1;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.05em;
+  color: #171717;
+}
+
+.rps-amount-tail {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #171717;
+}
+
+.rps-note {
+  margin-bottom: 6px;
+  font-size: 0.95rem;
+  color: #222222;
+}
+
+.rps-confirm {
+  margin-bottom: 32px;
+  font-size: 0.85rem;
+  color: #444444;
+}
+
+.rps-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.rps-stamp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 88px;
+  border: 1px dashed #999999;
+  border-radius: 2px;
+  color: #999999;
+  font-size: 0.7rem;
+  text-align: center;
+  writing-mode: vertical-rl;
+}
+
+.rps-issuer {
+  text-align: right;
+}
+
+.rps-issuer-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #171717;
+}
+
+/* --- Print rules ------------------------------------------------------------- */
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body.receipt-printing * {
+    visibility: hidden;
+  }
+
+  body.receipt-printing .receipt-print-sheet,
+  body.receipt-printing .receipt-print-sheet * {
+    visibility: visible;
+  }
+
+  body.receipt-printing .receipt-print-sheet {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .rv-view {
+    padding: var(--space-3);
+  }
+
+  .rv-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rv-overlay {
+    padding: var(--space-3);
+  }
+
+  .rv-field-row {
+    flex-direction: column;
+  }
+
+  .receipt-print-sheet {
+    padding: 28px 22px;
+  }
+
+  .rps-head {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .rps-meta {
+    align-items: flex-start;
+  }
+}

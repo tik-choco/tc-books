@@ -3,7 +3,7 @@
 // into useState / useEffect however it likes. Same pattern as tc-news.
 //
 // Recognized shapes:
-//   #/home  #/journal  #/ledger  #/reports  #/settings
+//   #/home  #/journal  #/ledger  #/reports  #/receipts  #/settings
 import type { MainTab } from "../types";
 
 export interface HashState {
@@ -18,6 +18,7 @@ function isMainTab(value: string): value is MainTab {
     value === "journal" ||
     value === "ledger" ||
     value === "reports" ||
+    value === "receipts" ||
     value === "settings"
   );
 }
