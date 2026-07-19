@@ -1,0 +1,76 @@
+/* AI Networkタブ — role card + @tik-choco/mistai/ui.css のトークンマッピング。
+   ステータス表示自体(dots, step indicator, request log等)は
+   @tik-choco/mistai/ui.css(app.tsx でimport)由来。ここはアプリのテーマを
+   ライブラリのCSS変数へマッピングし、role cardのレイアウトのみ持つ。
+   tc-translate の src/styles/network-status.css を移植（tc-books に
+   --text-strong トークンが無いため --text にフォールバック）。 */
+
+:root {
+  --mistai-border: var(--border);
+  --mistai-surface: var(--surface);
+  --mistai-text: var(--text);
+  --mistai-text-muted: var(--text-muted);
+  --mistai-text-strong: var(--text);
+}
+
+.settings-role-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-role-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+
+.settings-role-head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.settings-role-head input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.settings-role-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.settings-role-title svg {
+  color: var(--primary);
+  flex: 0 0 auto;
+}
+
+.settings-role-desc {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.settings-role-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}

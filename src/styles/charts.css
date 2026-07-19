@@ -1,0 +1,202 @@
+/* 収支グラフ (CashflowChart / CategoryBars) 共通スタイル。
+   トークンのみ使用 — src/index.css 参照。ダークテーマはトークン経由で自動対応。
+   クラスは chart- プレフィックスで統一する。 */
+
+.chart-card {
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-1);
+}
+
+.chart-empty {
+  padding: var(--space-5);
+  font-size: 0.85rem;
+  color: var(--text-subtle);
+  text-align: center;
+}
+
+/* --- 凡例 ------------------------------------------------------------- */
+
+.chart-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.chart-legend-chip {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-xs);
+}
+
+.chart-legend-chip--income {
+  background: var(--debit);
+}
+
+.chart-legend-chip--expense {
+  background: var(--credit);
+}
+
+/* --- CashflowChart ------------------------------------------------------ */
+
+.chart-svg-wrap {
+  position: relative;
+}
+
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart-gridline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart-tick-label,
+.chart-month-label {
+  fill: var(--text-subtle);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-bar-income {
+  fill: var(--debit);
+}
+
+.chart-bar-expense {
+  fill: var(--credit);
+}
+
+.chart-col-highlight {
+  fill: var(--surface-2);
+}
+
+.chart-hit-rect {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: var(--space-2);
+  transform: translateX(-50%);
+  z-index: 1;
+  min-width: 9em;
+  padding: var(--space-2) var(--space-3);
+  background: var(--elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-2);
+  font-size: 0.78rem;
+  color: var(--text);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.chart-tooltip-title {
+  margin-bottom: var(--space-1);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--text-muted);
+}
+
+.chart-tooltip-row .chart-legend-chip {
+  margin-right: var(--space-1);
+}
+
+.chart-tooltip-net {
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* --- CategoryBars -------------------------------------------------------- */
+
+.chart-cat-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chart-cat-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.chart-cat-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.chart-cat-name {
+  overflow: hidden;
+  min-width: 0;
+  font-size: 0.86rem;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-cat-amount {
+  flex-shrink: 0;
+  font-size: 0.86rem;
+  color: var(--text);
+}
+
+.chart-cat-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+}
+
+.chart-cat-bar--income {
+  background: var(--debit-soft);
+}
+
+.chart-cat-bar--expense {
+  background: var(--credit-soft);
+}
+
+.chart-cat-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width var(--dur) var(--ease);
+}
+
+.chart-cat-bar--income .chart-cat-fill {
+  background: var(--debit);
+}
+
+.chart-cat-bar--expense .chart-cat-fill {
+  background: var(--credit);
+}

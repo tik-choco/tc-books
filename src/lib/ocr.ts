@@ -27,7 +27,7 @@
 
 import { emptyLlmConfig, loadLlmConfig, resolvePreset } from "./llmConfig";
 import type { ResolvedLlmTargetV1 } from "./llmConfig";
-import { loadLocalSettings } from "./llmSettings";
+import { loadLocalSettings, type ReasoningEffort } from "./llmSettings";
 import type { ReceiptScan, ReceiptScanItem } from "../types";
 
 /**
@@ -213,6 +213,11 @@ export function parseReceiptScan(raw: string, transcript: string): ReceiptScan {
  * deterministic JSON, so neither stage benefits from the user's configured
  * temperature.
  *
+ * `reasoningEffort` is the caller's task-level setting (visionReasoningEffort
+ * for Stage 1, extractReasoningEffort for Stage 2 — see lib/llmSettings.ts)
+ * and is always sent explicitly, 'none' included (see
+ * tc-docs/drafts/llm-settings-common-v1.md §3.2).
+ *
  * Abort: `signal` is passed straight to `fetch`; on abort the resulting
  * AbortError propagates unwrapped (checked via `(error as Error).name`)
  * rather than being folded into the "connection failed" message below, and
@@ -222,6 +227,7 @@ export function parseReceiptScan(raw: string, transcript: string): ReceiptScan {
 async function streamCompletion(
   messages: ChatMessage[],
   resolved: ResolvedLlmTargetV1,
+  reasoningEffort: ReasoningEffort,
   signal: AbortSignal | undefined,
   onDelta: ((full: string) => void) | undefined,
 ): Promise<string> {
@@ -235,7 +241,7 @@ async function streamCompletion(
     model: resolved.model,
     stream: true,
     temperature: 0,
-    reasoning_effort: resolved.reasoningEffort ?? "none",
+    reasoning_effort: reasoningEffort,
     messages,
   };
 
@@ -332,7 +338,13 @@ export async function scanReceipt(dataUrl: string, options?: ScanReceiptOptions)
       ],
     },
   ];
-  const transcriptRaw = await streamCompletion(transcriptionMessages, resolved, options?.signal, options?.onDelta);
+  const transcriptRaw = await streamCompletion(
+    transcriptionMessages,
+    resolved,
+    localSettings.visionReasoningEffort,
+    options?.signal,
+    options?.onDelta,
+  );
   const transcript = transcriptRaw.trim();
 
   if (!transcript) {
@@ -355,13 +367,25 @@ export async function scanReceipt(dataUrl: string, options?: ScanReceiptOptions)
     { role: "user", content: transcript },
   ];
 
-  let extractionRaw = await streamCompletion(extractionMessages, extractTarget, options?.signal, options?.onDelta);
+  let extractionRaw = await streamCompletion(
+    extractionMessages,
+    extractTarget,
+    localSettings.extractReasoningEffort,
+    options?.signal,
+    options?.onDelta,
+  );
 
   if (!extractJsonRecord(extractionRaw)) {
     // Malformed JSON: retry once, feeding the failed reply back as context.
     extractionMessages.push({ role: "assistant", content: extractionRaw });
     extractionMessages.push({ role: "user", content: RETRY_MESSAGE });
-    extractionRaw = await streamCompletion(extractionMessages, extractTarget, options?.signal, options?.onDelta);
+    extractionRaw = await streamCompletion(
+      extractionMessages,
+      extractTarget,
+      localSettings.extractReasoningEffort,
+      options?.signal,
+      options?.onDelta,
+    );
   }
 
   return parseReceiptScan(extractionRaw.trim(), transcript);

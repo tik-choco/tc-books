@@ -17,7 +17,7 @@ import {
   type OpenAIConfig,
 } from "@tik-choco/mistai";
 import { emptyLlmConfig, loadLlmConfig, normalizeBaseUrl, resolvePreset, type ResolvedLlmTargetV1 } from "./llmConfig";
-import { loadLocalSettings } from "./llmSettings";
+import { loadLocalSettings, type ReasoningEffort } from "./llmSettings";
 import { consumerStatus, requestNetworkChat } from "./network";
 
 export interface RequestChatOptions {
@@ -25,17 +25,17 @@ export interface RequestChatOptions {
 }
 
 // Maps a resolved preset+provider onto the shared library's upstream config.
-// reasoningEffort is forwarded only when set and non-empty — an explicit ""
-// means the preset opted out of sending the reasoning_effort parameter
-// entirely.
-function apiConfig(target: ResolvedLlmTargetV1): OpenAIConfig {
-  const reasoningEffort = target.reasoningEffort?.trim();
+// `reasoningEffort` is the caller's task-level setting (see
+// lib/llmSettings.ts's ReasoningEffort) and is always forwarded, 'none'
+// included — it's an explicit API value, not "omit the field" (see
+// tc-docs/drafts/llm-settings-common-v1.md §3.2).
+function apiConfig(target: ResolvedLlmTargetV1, reasoningEffort: ReasoningEffort): OpenAIConfig {
   return {
     baseUrl: normalizeBaseUrl(target.baseUrl),
     apiKey: target.apiKey,
     model: target.model.trim(),
     temperature: target.temperature ?? 0.7,
-    ...(reasoningEffort ? { reasoningEffort } : {}),
+    reasoningEffort,
   };
 }
 
@@ -80,7 +80,7 @@ export async function requestChatCompletion(
     let full = "";
     const onDelta = options?.onDelta;
     const content = await streamChatCompletion(
-      apiConfig(resolved),
+      apiConfig(resolved, local.defaultReasoningEffort),
       messages,
       onDelta
         ? (delta) => {
