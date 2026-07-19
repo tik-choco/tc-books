@@ -329,6 +329,20 @@ select:focus-visible {
   font-size: 1.15rem;
 }
 
+/* Cashflow chart tab: expense/income breakdown side-by-side beneath the trend. */
+
+.rpt-chart-breakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+}
+
+@media (max-width: 720px) {
+  .rpt-chart-breakdown {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* --- LedgerView: two-pane layout ------------------------------------------- */
 
 .ledger-view {

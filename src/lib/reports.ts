@@ -163,3 +163,76 @@ export function monthRange(month: string): DateRange {
   const lastDay = new Date(year, mo, 0).getDate();
   return { from: `${month}-01`, to: `${month}-${String(lastDay).padStart(2, "0")}` };
 }
+
+const MONTH_RE = /^(\d{4})-(\d{2})$/;
+
+/** "YYYY-MM" を year*12+mo の連番に変換。不正形式や月番号異常はnull */
+function monthIndex(month: string): number | null {
+  const match = MONTH_RE.exec(month);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const mo = Number(match[2]);
+  if (mo < 1 || mo > 12) return null;
+  return year * 12 + mo;
+}
+
+function monthFromIndex(index: number): string {
+  const year = Math.floor((index - 1) / 12);
+  const mo = index - year * 12;
+  return `${year}-${String(mo).padStart(2, "0")}`;
+}
+
+/** fromMonth..toMonth (両端含む) の "YYYY-MM" 連番。from > to や不正形式は [] */
+export function monthSequence(fromMonth: string, toMonth: string): string[] {
+  const from = monthIndex(fromMonth);
+  const to = monthIndex(toMonth);
+  if (from === null || to === null || from > to) return [];
+
+  const months: string[] = [];
+  for (let i = from; i <= to; i += 1) {
+    months.push(monthFromIndex(i));
+  }
+  return months;
+}
+
+export interface MonthlyCashflowPoint {
+  month: string; // YYYY-MM
+  income: number; // 収益合計 (revenue科目: credit-debit の合計)
+  expense: number; // 費用合計 (expense科目: debit-credit の合計)
+  net: number; // income - expense
+}
+
+/** months の順に1点ずつ返す。仕訳のない月は 0/0/0。accountById で解決できない行は無視 */
+export function monthlyCashflowSeries(entries: JournalEntry[], months: string[]): MonthlyCashflowPoint[] {
+  const wanted = new Set(months);
+  const totals = new Map<string, { income: number; expense: number }>();
+
+  for (const entry of entries) {
+    const month = entry.date.slice(0, 7);
+    if (!wanted.has(month)) continue;
+    for (const line of entry.lines) {
+      const account = accountById(line.accountId);
+      if (!account) continue;
+      if (account.type !== "revenue" && account.type !== "expense") continue;
+      const agg = totals.get(month) ?? { income: 0, expense: 0 };
+      if (account.type === "revenue") {
+        agg.income += line.credit - line.debit;
+      } else {
+        agg.expense += line.debit - line.credit;
+      }
+      totals.set(month, agg);
+    }
+  }
+
+  return months.map((month) => {
+    const agg = totals.get(month) ?? { income: 0, expense: 0 };
+    return { month, income: agg.income, expense: agg.expense, net: agg.income - agg.expense };
+  });
+}
+
+/** 期間内の費用または収益のカテゴリ別合計、金額降順 */
+export function categoryBreakdown(entries: JournalEntry[], range: DateRange, type: "expense" | "revenue"): CategoryAmount[] {
+  const stmt = incomeStatement(entries, range);
+  const balances = type === "revenue" ? stmt.revenues : stmt.expenses;
+  return balances.map((b) => ({ account: b.account, amount: b.balance })).sort((a, b) => b.amount - a.amount);
+}

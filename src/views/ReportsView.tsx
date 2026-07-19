@@ -7,12 +7,33 @@ import type { JSX } from "preact";
 import type { AccountBalance, DateRange, JournalEntry } from "../types";
 import { loadEntries, subscribeBooks } from "../lib/store";
 import { todayYmd } from "../lib/journal";
-import { balanceSheet, incomeStatement, monthRange, trialBalance } from "../lib/reports";
+import {
+  balanceSheet,
+  categoryBreakdown,
+  incomeStatement,
+  monthlyCashflowSeries,
+  monthRange,
+  monthSequence,
+  trialBalance,
+} from "../lib/reports";
 import { paneEnterClass, useEnterDirection } from "../hooks/useEnterDirection";
+import { CashflowChart } from "../components/charts/CashflowChart";
+import { CategoryBars } from "../components/charts/CategoryBars";
 import "../styles/reports.css";
 
-type ReportTab = "trial" | "bs" | "is";
+type ReportTab = "chart" | "trial" | "bs" | "is";
 type PeriodKind = "month" | "year" | "all";
+
+const MAX_ALL_MONTHS = 36;
+
+/** "YYYY-MM" を year*12+month の整数演算でずらす(Date不使用)。 */
+function shiftMonth(month: string, delta: number): string {
+  const [yearStr, monthStr] = month.split("-");
+  const total = Number(yearStr) * 12 + (Number(monthStr) - 1) + delta;
+  const year = Math.floor(total / 12);
+  const mo = ((total % 12) + 12) % 12;
+  return `${year}-${String(mo + 1).padStart(2, "0")}`;
+}
 
 function formatYen(amount: number): string {
   return `¥${amount.toLocaleString("ja-JP")}`;
@@ -33,6 +54,7 @@ function sumBy(rows: AccountBalance[], key: "debit" | "credit"): number {
 }
 
 const REPORT_TABS: { id: ReportTab; label: string }[] = [
+  { id: "chart", label: "収支グラフ" },
   { id: "trial", label: "試算表" },
   { id: "bs", label: "貸借対照表" },
   { id: "is", label: "損益計算書" },
@@ -52,7 +74,7 @@ export function ReportsView(): JSX.Element {
     return list.length > 0 ? list : [todayYmd().slice(0, 4)];
   }, [entries]);
 
-  const [reportTab, setReportTab] = useState<ReportTab>("trial");
+  const [reportTab, setReportTab] = useState<ReportTab>("chart");
   const enterDir = useEnterDirection(REPORT_TAB_ORDER, reportTab);
   const [periodKind, setPeriodKind] = useState<PeriodKind>("month");
   const [monthValue, setMonthValue] = useState(() => months[0]);
@@ -67,6 +89,41 @@ export function ReportsView(): JSX.Element {
   const trial = useMemo(() => trialBalance(entries, range), [entries, range]);
   const bs = useMemo(() => balanceSheet(entries, asOf), [entries, asOf]);
   const is = useMemo(() => incomeStatement(entries, range), [entries, range]);
+
+  const { chartMonths, chartNotice } = useMemo(() => {
+    if (periodKind === "year") {
+      return { chartMonths: monthSequence(`${yearValue}-01`, `${yearValue}-12`), chartNotice: null };
+    }
+    if (periodKind === "all") {
+      const oldest = months[months.length - 1];
+      const newest = months[0];
+      const full = monthSequence(oldest, newest);
+      if (full.length > MAX_ALL_MONTHS) {
+        return {
+          chartMonths: full.slice(-MAX_ALL_MONTHS),
+          chartNotice: "直近36ヶ月を表示",
+        };
+      }
+      return { chartMonths: full, chartNotice: null };
+    }
+    return {
+      chartMonths: monthSequence(shiftMonth(monthValue, -11), monthValue),
+      chartNotice: null,
+    };
+  }, [periodKind, monthValue, yearValue, months]);
+
+  const cashflow = useMemo(
+    () => monthlyCashflowSeries(entries, chartMonths),
+    [entries, chartMonths],
+  );
+  const expenseBreakdown = useMemo(
+    () => categoryBreakdown(entries, range, "expense"),
+    [entries, range],
+  );
+  const incomeBreakdown = useMemo(
+    () => categoryBreakdown(entries, range, "revenue"),
+    [entries, range],
+  );
 
   const trialDebitTotal = sumBy(trial, "debit");
   const trialCreditTotal = sumBy(trial, "credit");
@@ -116,6 +173,26 @@ export function ReportsView(): JSX.Element {
       </div>
 
       <div key={reportTab} class={paneEnterClass(enterDir)}>
+        {reportTab === "chart" && (
+          <div class="rpt-stack">
+            <div class="rpt-section">
+              <h3 class="rpt-section-title">収支の推移</h3>
+              {chartNotice && <p class="rpt-asof">{chartNotice}</p>}
+              <CashflowChart points={cashflow} />
+            </div>
+            <div class="rpt-chart-breakdown">
+              <div class="rpt-section">
+                <h3 class="rpt-section-title">支出の内訳</h3>
+                <CategoryBars items={expenseBreakdown} variant="expense" />
+              </div>
+              <div class="rpt-section">
+                <h3 class="rpt-section-title">収入の内訳</h3>
+                <CategoryBars items={incomeBreakdown} variant="income" />
+              </div>
+            </div>
+          </div>
+        )}
+
         {reportTab === "trial" && (
           <div class="rpt-section">
             <h3 class="rpt-section-title">試算表</h3>

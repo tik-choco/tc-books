@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import "@tik-choco/mistai/ui.css";
 import {
   BookOpenText,
   ChartColumnBig,

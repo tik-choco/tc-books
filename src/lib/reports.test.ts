@@ -1,6 +1,16 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { JournalEntry } from "../types";
-import { balanceSheet, incomeStatement, ledgerRows, monthlySummary, monthRange, trialBalance } from "./reports";
+import {
+  balanceSheet,
+  categoryBreakdown,
+  incomeStatement,
+  ledgerRows,
+  monthlyCashflowSeries,
+  monthlySummary,
+  monthRange,
+  monthSequence,
+  trialBalance,
+} from "./reports";
 
 let seq = 0;
 function mkEntry(date: string, lines: JournalEntry["lines"], description = ""): JournalEntry {
@@ -161,5 +171,89 @@ describe("monthRange", () => {
     expect(monthRange("2026-02")).toEqual({ from: "2026-02-01", to: "2026-02-28" });
     expect(monthRange("2024-02")).toEqual({ from: "2024-02-01", to: "2024-02-29" });
     expect(monthRange("2026-07")).toEqual({ from: "2026-07-01", to: "2026-07-31" });
+  });
+});
+
+describe("monthSequence", () => {
+  it("同一月なら1件を返す", () => {
+    expect(monthSequence("2026-06", "2026-06")).toEqual(["2026-06"]);
+  });
+
+  it("年を跨いだ連番を返す", () => {
+    expect(monthSequence("2025-11", "2026-02")).toEqual(["2025-11", "2025-12", "2026-01", "2026-02"]);
+  });
+
+  it("from > to は空配列", () => {
+    expect(monthSequence("2026-06", "2026-01")).toEqual([]);
+  });
+
+  it("不正な形式は空配列", () => {
+    expect(monthSequence("2025-13", "2026-01")).toEqual([]);
+    expect(monthSequence("abc", "2026-01")).toEqual([]);
+    expect(monthSequence("2026-00", "2026-01")).toEqual([]);
+  });
+});
+
+describe("monthlyCashflowSeries", () => {
+  it("仕訳のない月は0埋めし、指定月の収支を計算する", () => {
+    const entries = sampleEntries();
+    const months = monthSequence("2026-05", "2026-07");
+    const points = monthlyCashflowSeries(entries, months);
+
+    expect(points.map((p) => p.month)).toEqual(["2026-05", "2026-06", "2026-07"]);
+    expect(points[0]).toEqual({ month: "2026-05", income: 0, expense: 0, net: 0 });
+    expect(points[1]).toEqual({ month: "2026-06", income: 300000, expense: 5000, net: 295000 });
+    expect(points[2]).toEqual({ month: "2026-07", income: 0, expense: 3000, net: -3000 });
+  });
+
+  it("months に含まれない月の仕訳は無視される", () => {
+    const entries = sampleEntries();
+    // 1月の期首残高仕訳(opening-balance/cash)はrevenue/expenseではないので影響なし、
+    // 6月分の仕訳がmonthsに含まれていなければ計上されないことを確認する
+    const points = monthlyCashflowSeries(entries, ["2026-07"]);
+    expect(points).toEqual([{ month: "2026-07", income: 0, expense: 3000, net: -3000 }]);
+  });
+
+  it("accountById で解決できない行は無視される", () => {
+    const entries: JournalEntry[] = [
+      mkEntry("2026-08-01", [
+        { accountId: "unknown-account-xyz", debit: 1000, credit: 0 },
+        { accountId: "unknown-account-abc", debit: 0, credit: 1000 },
+      ]),
+    ];
+    const points = monthlyCashflowSeries(entries, ["2026-08"]);
+    expect(points).toEqual([{ month: "2026-08", income: 0, expense: 0, net: 0 }]);
+  });
+});
+
+describe("categoryBreakdown", () => {
+  it("金額降順でカテゴリ別合計を返す (expense)", () => {
+    const entries: JournalEntry[] = [
+      mkEntry("2026-06-01", [
+        { accountId: "food", debit: 3000, credit: 0 },
+        { accountId: "cash", debit: 0, credit: 3000 },
+      ]),
+      mkEntry("2026-06-02", [
+        { accountId: "utilities", debit: 8000, credit: 0 },
+        { accountId: "cash", debit: 0, credit: 8000 },
+      ]),
+    ];
+    const rows = categoryBreakdown(entries, { from: "2026-06-01", to: "2026-06-30" }, "expense");
+    expect(rows.map((r) => r.account.id)).toEqual(["utilities", "food"]);
+    expect(rows.map((r) => r.amount)).toEqual([8000, 3000]);
+  });
+
+  it("range フィルタが効く", () => {
+    const entries = sampleEntries();
+    const rows = categoryBreakdown(entries, { from: "2026-07-01", to: "2026-07-31" }, "expense");
+    expect(rows).toEqual([{ account: expect.objectContaining({ id: "food" }), amount: 3000 }]);
+  });
+
+  it("type=revenue と type=expense を区別する", () => {
+    const entries = sampleEntries();
+    const revenueRows = categoryBreakdown(entries, {}, "revenue");
+    const expenseRows = categoryBreakdown(entries, {}, "expense");
+    expect(revenueRows.map((r) => r.account.id)).toEqual(["salary"]);
+    expect(expenseRows.map((r) => r.account.id)).toEqual(["food"]);
   });
 });
