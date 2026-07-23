@@ -42,6 +42,7 @@ import { MESSAGES_JA } from "@tik-choco/mistai";
 import { ConsumerStatusIndicator } from "@tik-choco/mistai/preact";
 import { emptyLlmConfig, loadLlmConfig, saveLlmConfig, subscribeLlmConfig, type SharedLlmConfigV1 } from "../lib/llmConfig";
 import { loadLocalSettings, saveLocalSettings, REASONING_EFFORT_OPTIONS, type BooksLocalSettings, type ReasoningEffort } from "../lib/llmSettings";
+import { isNetworkProviderBaseUrl } from "../lib/networkModels";
 import { requestOnboarding } from "../lib/onboarding";
 import { paneEnterClass, useEnterDirection } from "../hooks/useEnterDirection";
 import { useDraftField } from "../hooks/useDraftField";
@@ -244,6 +245,15 @@ export function SettingsView(): JSX.Element {
       }),
     [],
   );
+  // Gates AI-Network-derived presets in the タスク tab selects below
+  // (option-network styling, task-badge badge, and hiding those options
+  // entirely while disconnected — see LlmConnectionPanel.tsx's
+  // isNetworkPresetProvider for the card-level equivalent).
+  const networkConnected = consumer.phase === "connected";
+  function isNetworkPresetProvider(providerId: string): boolean {
+    const provider = shared.providers.find((entry) => entry.id === providerId);
+    return provider ? isNetworkProviderBaseUrl(provider.baseUrl) : false;
+  }
 
   const [backupPublished, setBackupPublished] = useState(() => hasPublishedBackup());
   useEffect(() => {
@@ -547,12 +557,17 @@ export function SettingsView(): JSX.Element {
                       aria-label="既定"
                     >
                       <option value="">未設定</option>
-                      {shared.presets.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label || p.id}
-                        </option>
-                      ))}
+                      {shared.presets
+                        .filter((p) => networkConnected || !isNetworkPresetProvider(p.providerId))
+                        .map((p) => (
+                          <option key={p.id} value={p.id} class={isNetworkPresetProvider(p.providerId) ? "option-network" : undefined}>
+                            {p.label || p.id}
+                          </option>
+                        ))}
                     </select>
+                    {networkConnected && isNetworkPresetProvider(shared.presets.find((p) => p.id === shared.defaultPresetId)?.providerId ?? "") ? (
+                      <span class="task-badge">AI Network</span>
+                    ) : null}
                   </div>
                   <ReasoningEffortSelect
                     value={local.defaultReasoningEffort}
@@ -573,12 +588,17 @@ export function SettingsView(): JSX.Element {
                       aria-label="領収書OCR"
                     >
                       <option value="">既定と同じ</option>
-                      {shared.presets.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label || p.id}
-                        </option>
-                      ))}
+                      {shared.presets
+                        .filter((p) => networkConnected || !isNetworkPresetProvider(p.providerId))
+                        .map((p) => (
+                          <option key={p.id} value={p.id} class={isNetworkPresetProvider(p.providerId) ? "option-network" : undefined}>
+                            {p.label || p.id}
+                          </option>
+                        ))}
                     </select>
+                    {networkConnected && isNetworkPresetProvider(shared.presets.find((p) => p.id === local.visionPresetId)?.providerId ?? "") ? (
+                      <span class="task-badge">AI Network</span>
+                    ) : null}
                   </div>
                   <ReasoningEffortSelect
                     value={local.visionReasoningEffort}
@@ -599,12 +619,17 @@ export function SettingsView(): JSX.Element {
                       aria-label="領収書解析"
                     >
                       <option value="">領収書OCR用と同じ</option>
-                      {shared.presets.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label || p.id}
-                        </option>
-                      ))}
+                      {shared.presets
+                        .filter((p) => networkConnected || !isNetworkPresetProvider(p.providerId))
+                        .map((p) => (
+                          <option key={p.id} value={p.id} class={isNetworkPresetProvider(p.providerId) ? "option-network" : undefined}>
+                            {p.label || p.id}
+                          </option>
+                        ))}
                     </select>
+                    {networkConnected && isNetworkPresetProvider(shared.presets.find((p) => p.id === local.extractPresetId)?.providerId ?? "") ? (
+                      <span class="task-badge">AI Network</span>
+                    ) : null}
                   </div>
                   <ReasoningEffortSelect
                     value={local.extractReasoningEffort}
