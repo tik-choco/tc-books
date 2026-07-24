@@ -8,6 +8,26 @@
 // responsible for calling saveLlmConfig() afterwards.
 
 import type { LlmProviderV1, ModelPresetV1, SharedLlmConfigV1 } from "./llmConfig";
+import { isNetworkProviderBaseUrl } from "./networkModels";
+
+/**
+ * Picks a safe replacement for `config.defaultPresetId` once its previous
+ * target preset has just been removed here: the first remaining preset whose
+ * provider is NOT a `mist-network://` pseudo-provider, never an arbitrary
+ * `config.presets[0]`. The shared `tc-shared-llm-config-v1` config is
+ * co-owned across the tik-choco app family, so `presets[0]` can easily be a
+ * network mirror row written in by another app; blindly promoting it to the
+ * shared default would silently flip every unset-providerId task (chat,
+ * TTS/STT) from the user's actual API provider onto the AI Network transport.
+ * Falls back to "" (unset) when every remaining preset is network-owned.
+ */
+function safeDefaultPresetFallback(config: SharedLlmConfigV1): string {
+  const nonNetwork = config.presets.find((preset) => {
+    const provider = config.providers.find((entry) => entry.id === preset.providerId);
+    return provider !== undefined && !isNetworkProviderBaseUrl(provider.baseUrl);
+  });
+  return nonNetwork?.id ?? "";
+}
 
 function newId(): string {
   try {
@@ -54,5 +74,5 @@ export function patchPreset(config: SharedLlmConfigV1, id: string, patch: Partia
 /** Removes a preset. If it was the default, the next remaining preset (if any) takes over; task pointers (visionPresetId etc.) referencing it are left to the caller to clear. */
 export function deletePreset(config: SharedLlmConfigV1, id: string): void {
   config.presets = config.presets.filter((entry) => entry.id !== id);
-  if (config.defaultPresetId === id) config.defaultPresetId = config.presets[0]?.id ?? "";
+  if (config.defaultPresetId === id) config.defaultPresetId = safeDefaultPresetFallback(config);
 }
