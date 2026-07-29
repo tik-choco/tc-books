@@ -15,6 +15,9 @@ dist-ssr
 # mistlib's own git clone cache used by scripts/fetch-mistlib.mjs; the
 # built output it produces (src/vendor/mistlib) IS committed.
 .mistlib-src
+# same, but for the standalone repo that now holds the JS wrapper
+# (wrappers/web) since mistlib split it out of the engine repo.
+.mistlib-examples-src
 
 .env
 
