@@ -2,7 +2,7 @@
 //
 // Given a free-form sentence like "昨日セブンでコーヒー300円 現金" plus the
 // caller's candidate accounts, asks the LLM (via llm.ts's requestChatCompletion,
-// presetId always undefined so the shared config's defaultPresetId decides) to
+// the app's general task ref, or the shared default model, decides) to
 // guess a description/date/amount/debit account/credit account. Defensive JSON
 // parsing mirrors ocr.ts's style (stripCodeFences / extractJsonBlock /
 // toIntegerOrNull) — duplicated here rather than imported since ocr.ts is
