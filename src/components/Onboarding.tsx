@@ -13,161 +13,19 @@ import {
   ChartColumnBig,
   Check,
   Cloud,
-  Cpu,
   House,
   NotebookPen,
-  Plug,
-  RefreshCw,
   Sparkles,
   X,
 } from "lucide-preact";
-import { fetchModels, formatMistaiError, MESSAGES_JA, streamChatCompletion } from "@tik-choco/mistai";
-import {
-  emptyLlmConfig,
-  ensureProvider,
-  loadLlmConfig,
-  normalizeBaseUrl,
-  resolvePreset,
-  saveLlmConfig,
-} from "../lib/llmConfig";
+import { BooksAiSettings } from "./BooksAiSettings";
+import { aiMessages } from "../lib/llmMessages";
 import "../styles/onboarding.css";
 
 const STEP_COUNT = 3;
 
-interface LlmDraft {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-}
-
-type TestState =
-  | { phase: "idle" }
-  | { phase: "busy" }
-  | { phase: "ok" }
-  | { phase: "error"; message: string };
-
-function inputValue(event: Event): string {
-  return (event.target as HTMLInputElement).value;
-}
-
-/** モデル名の入力欄。「候補取得」ボタンで fetchModels を呼び datalist に反映する。
- * 取得に失敗した場合は無視して手入力にフォールバックする。 */
-function ModelField(props: {
-  value: string;
-  baseUrl: string;
-  apiKey: string;
-  onChange: (model: string) => void;
-}) {
-  const { value, baseUrl, apiKey, onChange } = props;
-  const [options, setOptions] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  async function refresh() {
-    if (!baseUrl.trim()) return;
-    setLoading(true);
-    try {
-      const models = await fetchModels({ baseUrl, apiKey });
-      setOptions(models);
-    } catch {
-      // 失敗は無視: 手入力にフォールバックする
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div class="ob-model-row">
-      <input
-        class="ob-input"
-        list="ob-model-options"
-        type="text"
-        placeholder="例: gpt-4o-mini"
-        value={value}
-        onInput={(e) => onChange(inputValue(e))}
-      />
-      <datalist id="ob-model-options">
-        {options.map((model) => (
-          <option key={model} value={model} />
-        ))}
-      </datalist>
-      <button
-        class="ob-icon-btn"
-        type="button"
-        onClick={() => void refresh()}
-        disabled={loading || !baseUrl.trim()}
-        title="候補取得"
-        aria-label="候補取得"
-      >
-        <RefreshCw size={14} />
-      </button>
-    </div>
-  );
-}
-
 export function Onboarding(props: { onClose: () => void }) {
   const [step, setStep] = useState(0);
-
-  // LLM draft starts from the shared config's current default preset so
-  // re-running the wizard shows (and edits) the real current connection
-  // instead of blank fields.
-  const [llm, setLlm] = useState<LlmDraft>(() => {
-    const target = resolvePreset(loadLlmConfig() ?? emptyLlmConfig());
-    return {
-      baseUrl: target?.baseUrl ?? "",
-      apiKey: target?.apiKey ?? "",
-      model: target?.model ?? "",
-    };
-  });
-  const [testState, setTestState] = useState<TestState>({ phase: "idle" });
-
-  function updateLlm(patch: Partial<LlmDraft>) {
-    setLlm((prev) => ({ ...prev, ...patch }));
-    // Edited connection values invalidate a previous test result.
-    setTestState({ phase: "idle" });
-  }
-
-  /** Persists the draft into the default preset (the one used for receipt OCR): edits it in place if one already exists, otherwise creates a provider+preset and sets it as default. */
-  function saveLlmDraft() {
-    const cfg = loadLlmConfig() ?? emptyLlmConfig();
-    const providerId = ensureProvider(cfg, { baseUrl: llm.baseUrl, apiKey: llm.apiKey });
-    const existingDefault = cfg.presets.find((p) => p.id === cfg.defaultPresetId);
-    if (existingDefault) {
-      existingDefault.providerId = providerId;
-      existingDefault.model = llm.model.trim();
-    } else {
-      const preset = { id: crypto.randomUUID(), label: "デフォルト", providerId, model: llm.model.trim() };
-      cfg.presets.push(preset);
-      cfg.defaultPresetId = preset.id;
-    }
-    saveLlmConfig(cfg);
-  }
-
-  async function handleTest() {
-    if (testState.phase === "busy") return;
-    setTestState({ phase: "busy" });
-    try {
-      await streamChatCompletion(
-        {
-          baseUrl: normalizeBaseUrl(llm.baseUrl),
-          apiKey: llm.apiKey,
-          model: llm.model.trim(),
-          temperature: 0.7,
-        },
-        [{ role: "user", content: "接続テストです。「OK」とだけ返してください。" }],
-      );
-      setTestState({ phase: "ok" });
-    } catch (error) {
-      setTestState({ phase: "error", message: formatMistaiError(error, MESSAGES_JA, "LLM呼び出しに失敗しました") });
-    }
-  }
-
-  function handleLlmNext() {
-    // 空欄のまま次へ進む場合は保存しない(未設定のまま手入力運用を続けられる)。
-    if (llm.baseUrl.trim() || llm.model.trim()) {
-      saveLlmDraft();
-    }
-    setStep(2);
-  }
 
   return (
     <div class="ob-overlay">
@@ -195,63 +53,8 @@ export function Onboarding(props: { onClose: () => void }) {
 
         {step === 1 && (
           <div class="ob-body">
-            <div class="ob-step-head">
-              <Cpu size={22} />
-              <h2 class="ob-title">LLMの接続設定（任意）</h2>
-            </div>
-            <p class="ob-text">
-              レシート画像の読み取り(OCR)に使う LLM を設定します。OpenAI 互換の API ならどれでも使えます
-              （OpenAI、LM Studio、Ollama など）。使わない場合はこのままスキップできます。
-            </p>
-
-            <div class="ob-field">
-              <label class="ob-label">ベースURL</label>
-              <input
-                class="ob-input"
-                type="text"
-                placeholder="例: https://api.openai.com/v1 / http://localhost:1234/v1"
-                value={llm.baseUrl}
-                onInput={(e) => updateLlm({ baseUrl: inputValue(e) })}
-              />
-            </div>
-            <div class="ob-field">
-              <label class="ob-label">APIキー（不要なら空欄）</label>
-              <input
-                class="ob-input"
-                type="password"
-                placeholder="sk-..."
-                value={llm.apiKey}
-                onInput={(e) => updateLlm({ apiKey: inputValue(e) })}
-              />
-            </div>
-            <div class="ob-field">
-              <label class="ob-label">モデル</label>
-              <ModelField
-                value={llm.model}
-                baseUrl={llm.baseUrl}
-                apiKey={llm.apiKey}
-                onChange={(model) => updateLlm({ model })}
-              />
-            </div>
-
-            <div class="ob-test-row">
-              <button
-                class="ob-btn"
-                type="button"
-                onClick={() => void handleTest()}
-                disabled={testState.phase === "busy" || !llm.baseUrl.trim()}
-              >
-                {testState.phase === "busy" ? <span class="spinner" /> : <Plug size={16} />}
-                {testState.phase === "busy" ? "接続中..." : "接続テスト"}
-              </button>
-              {testState.phase === "ok" && (
-                <span class="ob-test-ok">
-                  <Check size={16} />
-                  接続できました！
-                </span>
-              )}
-            </div>
-            {testState.phase === "error" && <p class="ob-error">接続に失敗しました: {testState.message}</p>}
+            <p class="ob-text">{aiMessages().setupTip}</p>
+            <BooksAiSettings />
           </div>
         )}
 
@@ -317,8 +120,8 @@ export function Onboarding(props: { onClose: () => void }) {
               </button>
             )}
             {step === 1 && (
-              <button class="ob-btn ob-btn-accent" type="button" onClick={handleLlmNext}>
-                保存して次へ
+              <button class="ob-btn ob-btn-accent" type="button" onClick={() => setStep(2)}>
+                {aiMessages().next}
                 <ArrowRight size={16} />
               </button>
             )}

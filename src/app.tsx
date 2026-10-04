@@ -24,6 +24,9 @@ import { SettingsView } from "./views/SettingsView";
 import { BookSwitcher } from "./components/BookSwitcher";
 import { Onboarding } from "./components/Onboarding";
 import { markOnboardingDone, shouldShowOnboarding, subscribeOnboardingRequests } from "./lib/onboarding";
+import { useLlmConfig, useRoomProviders } from "@tik-choco/mistai/preact";
+import { loadLocalSettings, subscribeLocalSettings } from "./lib/llmSettings";
+import { rooms } from "./lib/network";
 
 const TABS: { id: MainTab; label: string; icon: typeof House }[] = [
   { id: "home", label: "家計簿", icon: House },
@@ -64,6 +67,16 @@ export function App() {
   // settings screen. Closing it (any path) marks onboarding done.
   const [showOnboarding, setShowOnboarding] = useState(() => shouldShowOnboarding());
   useEffect(() => subscribeOnboardingRequests(() => setShowOnboarding(true)), []);
+  const { config } = useLlmConfig();
+  const [llmLocal, setLlmLocal] = useState(loadLocalSettings);
+  useEffect(() => subscribeLocalSettings(() => setLlmLocal(loadLocalSettings())), []);
+  // Keep providing and referenced room consumers alive outside the settings view.
+  useRoomProviders({
+    config, consumers: rooms, roomProvide: llmLocal.roomProvide,
+    taskRefs: Object.values(llmLocal.tasks).map(task => task.ref),
+    reasoningEffort: llmLocal.tasks.default.reasoningEffort,
+    settingsOpen: tab === "settings" || showOnboarding,
+  });
 
   function closeOnboarding() {
     markOnboardingDone();

@@ -1,101 +1,25 @@
-// Chat-completion entry point for tc-books. Callers (OCR/vision aside, which
-// always goes direct-HTTP per docs/CONTRACTS.md) call requestChatCompletion()
-// with a preset id (resolved against the shared tc-shared-llm-config-v1
-// config, see lib/llmConfig.ts) and don't care whether the request goes
-// direct-to-API (via @tik-choco/mistai's streamChatCompletion) or over the AI
-// Network (via the ConsumerClient in lib/network.ts). Both branches stream
-// deltas through onDelta and resolve with the full reply. Modeled on
-// tc-news's src/lib/llm.ts (itself modeled on tc-town's), minus the i18n
-// layer — tc-books hardcodes Japanese UI copy per docs/CONTRACTS.md.
+import { streamChatCompletion, type ChatMessage } from "@tik-choco/mistai";
+import { providerKind, resolveModel, roomIdFromBaseUrl, type ModelRefV1 } from "@tik-choco/mistai/llm-config";
+import { loadLocalSettings, loadSharedConfig, type ReasoningEffort } from "./llmSettings";
+import { aiMessages } from "./llmMessages";
+import { rooms } from "./network";
 
-import {
-  MistaiError,
-  formatMistaiError,
-  MESSAGES_JA,
-  streamChatCompletion,
-  type ChatMessage,
-  type OpenAIConfig,
-} from "@tik-choco/mistai";
-import { emptyLlmConfig, loadLlmConfig, normalizeBaseUrl, resolvePreset, type ResolvedLlmTargetV1 } from "./llmConfig";
-import { loadLocalSettings, type ReasoningEffort } from "./llmSettings";
-import { consumerStatus, requestNetworkChat } from "./network";
-
-export interface RequestChatOptions {
-  onDelta?: (delta: string, full: string) => void;
-}
-
-// Maps a resolved preset+provider onto the shared library's upstream config.
-// `reasoningEffort` is the caller's task-level setting (see
-// lib/llmSettings.ts's ReasoningEffort) and is always forwarded, 'none'
-// included — it's an explicit API value, not "omit the field" (see
-// tc-docs/drafts/llm-settings-common-v1.md §3.2).
-function apiConfig(target: ResolvedLlmTargetV1, reasoningEffort: ReasoningEffort): OpenAIConfig {
-  return {
-    baseUrl: normalizeBaseUrl(target.baseUrl),
-    apiKey: target.apiKey,
-    model: target.model.trim(),
-    temperature: target.temperature ?? 0.7,
-    reasoningEffort,
-  };
-}
-
-/**
- * Resolves `presetId` (or, if omitted / not found, the shared config's
- * defaultPresetId) against tc-shared-llm-config-v1 and requests a chat
- * completion. Routes through the AI Network consumer when it's enabled
- * (tc-books-local toggle) and currently connected (forwarding the preset's
- * model as the requested model, "" meaning "let the provider use its own");
- * otherwise calls the preset's provider directly. Throws a Japanese-language
- * Error if no preset/provider can be resolved, or on network/HTTP/empty-
- * response failure (formatted via formatMistaiError).
- */
 export async function requestChatCompletion(
-  presetId: string | undefined,
+  ref: ModelRefV1 | undefined,
   messages: ChatMessage[],
-  options?: { onDelta?: (delta: string, full: string) => void },
+  options?: { onDelta?: (delta: string, full: string) => void; reasoningEffort?: ReasoningEffort },
 ): Promise<string> {
-  const cfg = loadLlmConfig() ?? emptyLlmConfig();
-  const resolved = resolvePreset(cfg, presetId || undefined);
-  if (!resolved) {
-    throw new Error("LLM設定が見つかりません。設定画面でプロバイダとプリセットを追加してください。");
-  }
   const local = loadLocalSettings();
-
-  try {
-    if (local.networkConsumerEnabled && consumerStatus().phase === "connected") {
-      const content = await requestNetworkChat(
-        cfg.network.roomId,
-        messages,
-        resolved.model.trim() || undefined,
-        options?.onDelta,
-      );
-      if (!content.trim()) {
-        throw new MistaiError("UPSTREAM_BAD_RESPONSE", "LLMの応答が空でした");
-      }
-      return content;
-    }
-
-    // streamChatCompletion's onDelta hands us the fragment only; accumulate
-    // the running text ourselves so callers get the (delta, full) pair.
-    let full = "";
-    const onDelta = options?.onDelta;
-    const content = await streamChatCompletion(
-      apiConfig(resolved, local.defaultReasoningEffort),
+  const target = resolveModel(loadSharedConfig(), ref ?? local.tasks.default.ref);
+  if (!target) throw new Error(aiMessages().modelRequired);
+  let full = "";
+  const content = providerKind(target) === "room"
+    ? await rooms.requestRoomChat(roomIdFromBaseUrl(target.baseUrl), messages, target.model, options?.onDelta)
+    : await streamChatCompletion(
+      { ...target, reasoningEffort: options?.reasoningEffort ?? local.tasks.default.reasoningEffort },
       messages,
-      onDelta
-        ? (delta) => {
-            full += delta;
-            onDelta(delta, full);
-          }
-        : undefined,
+      options?.onDelta ? delta => { full += delta; options.onDelta!(delta, full); } : undefined,
     );
-
-    if (!content.trim()) {
-      throw new MistaiError("UPSTREAM_BAD_RESPONSE", "LLMの応答が空でした");
-    }
-
-    return content;
-  } catch (err) {
-    throw new Error(formatMistaiError(err, MESSAGES_JA, "LLM呼び出しに失敗しました"));
-  }
+  if (!content.trim()) throw new Error(aiMessages().emptyResponse);
+  return content;
 }

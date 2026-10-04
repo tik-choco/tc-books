@@ -1,33 +1,8 @@
-// TC Books — receipt OCR via direct-HTTP two-stage chat completion (worker: ocr)
-//
-// Mirrors tc-translate `src/lib/api.ts` readImageText: the P2P/mistai wire
-// protocol's ChatMessage.content is string-only, so vision requests (which
-// need the OpenAI content-part array of text + image_url) always go straight
-// to `${baseUrl}/chat/completions` over fetch + SSE, never through the AI
-// Network consumer relay. `resolvePreset` gives us the connection info; a
-// missing preset means the user hasn't wired up an LLM endpoint yet.
-//
-// Two-stage pipeline (reworked from a single vision+JSON call, which measured
-// under 20% real-world accuracy because vision models are bad at emitting
-// well-formed JSON while also reading small print):
-//   Stage 1 "transcribe" — a vision call whose ONLY job is a faithful plain
-//     text transcription of the receipt (line structure preserved, unreadable
-//     glyphs marked ▢, no JSON, no commentary). This plays to what vision
-//     models are actually good at. Uses `localSettings.visionPresetId`
-//     (falling back to the shared config's defaultPresetId).
-//   Stage 2 "extract" — a text-only call (same endpoint) that turns the
-//     Stage-1 transcript into the structured JSON schema. Decoupling
-//     "reading" from "formatting" is the point of this rework. If the reply
-//     isn't parseable JSON, Stage 2 is retried once with the failed reply
-//     appended as context; a second failure returns the empty-fields
-//     ReceiptScan rather than throwing. Uses `localSettings.extractPresetId`
-//     when set and resolvable; otherwise reuses the already-resolved Stage-1
-//     preset directly (NOT the shared defaultPresetId), so users who never
-//     touch the new setting see unchanged behavior.
-
-import { emptyLlmConfig, loadLlmConfig, resolvePreset } from "./llmConfig";
-import type { ResolvedLlmTargetV1 } from "./llmConfig";
-import { loadLocalSettings, type ReasoningEffort } from "./llmSettings";
+import { providerKind, resolveModel, roomIdFromBaseUrl } from "@tik-choco/mistai/llm-config";
+import type { ResolvedLlmTargetV1 } from "@tik-choco/mistai/llm-config";
+import { loadSharedConfig, loadLocalSettings, type ReasoningEffort } from "./llmSettings";
+import { rooms } from "./network";
+import { aiMessages } from "./llmMessages";
 import type { ReceiptScan, ReceiptScanItem } from "../types";
 
 /**
@@ -203,27 +178,7 @@ export function parseReceiptScan(raw: string, transcript: string): ReceiptScan {
   };
 }
 
-/**
- * POSTs one non-streaming-to-caller chat completion request (SSE under the
- * hood) to `${resolved.baseUrl}/chat/completions` and resolves with the full
- * accumulated reply text, invoking `onDelta(full)` as chunks arrive.
- *
- * `temperature` is always forced to 0 (ignoring `resolved.temperature`):
- * Stage 1 needs the most literal possible transcription and Stage 2 needs
- * deterministic JSON, so neither stage benefits from the user's configured
- * temperature.
- *
- * `reasoningEffort` is the caller's task-level setting (visionReasoningEffort
- * for Stage 1, extractReasoningEffort for Stage 2 — see lib/llmSettings.ts)
- * and is always sent explicitly, 'none' included (see
- * tc-docs/drafts/llm-settings-common-v1.md §3.2).
- *
- * Abort: `signal` is passed straight to `fetch`; on abort the resulting
- * AbortError propagates unwrapped (checked via `(error as Error).name`)
- * rather than being folded into the "connection failed" message below, and
- * an aborted stream causes `reader.read()` to reject, stopping the read loop
- * promptly.
- */
+// HTTP streams deltas; room vision uses the buffered OpenAI tunnel.
 async function streamCompletion(
   messages: ChatMessage[],
   resolved: ResolvedLlmTargetV1,
@@ -240,14 +195,28 @@ async function streamCompletion(
   const body: Record<string, unknown> = {
     model: resolved.model,
     stream: true,
-    temperature: 0,
     reasoning_effort: reasoningEffort,
     messages,
   };
 
+  const t = aiMessages();
+  signal?.throwIfAborted();
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
+    if (providerKind(resolved) === "room") {
+      let abort: (() => void) | undefined;
+      const request = rooms.requestRoomOpenAi(roomIdFromBaseUrl(resolved.baseUrl), {
+        path: "/chat/completions", method: "POST", contentType: "application/json",
+        body: JSON.stringify({ ...body, stream: false }),
+      });
+      try {
+        const result = await Promise.race([request, new Promise<never>((_, reject) => {
+          abort = () => reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
+          signal?.addEventListener("abort", abort, { once: true });
+        })]);
+        response = new Response(result.body, { status: result.status, headers: { "Content-Type": result.contentType } });
+      } finally { if (abort) signal?.removeEventListener("abort", abort); }
+    } else response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -255,7 +224,7 @@ async function streamCompletion(
     });
   } catch (error) {
     if ((error as Error).name === "AbortError") throw error;
-    throw new Error(`LLM APIへの接続に失敗しました: ${(error as Error).message}`);
+    throw new Error(t.connectionFailed.replace("{message}", (error as Error).message));
   }
 
   if (!response.ok) {
@@ -263,12 +232,19 @@ async function streamCompletion(
     const message =
       payload && typeof payload === "object" && payload.error && typeof payload.error.message === "string"
         ? payload.error.message
-        : `LLM APIがエラーを返しました (status ${response.status})`;
+        : t.upstreamError.replace("{status}", String(response.status));
     throw new Error(message);
   }
 
+  if (response.headers.get("Content-Type")?.includes("application/json")) {
+    const payload = await response.json();
+    const full = payload.choices?.[0]?.message?.content;
+    if (typeof full !== "string") throw new Error(t.emptyResponse);
+    onDelta?.(full);
+    return full;
+  }
   if (!response.body) {
-    throw new Error("LLMからの応答が空でした。");
+    throw new Error(t.emptyResponse);
   }
 
   const reader = response.body.getReader();
@@ -310,20 +286,15 @@ async function streamCompletion(
 }
 
 export async function scanReceipt(dataUrl: string, options?: ScanReceiptOptions): Promise<ReceiptScan> {
-  const config = loadLlmConfig() ?? emptyLlmConfig();
+  const config = loadSharedConfig();
   const localSettings = loadLocalSettings();
-  const resolved = resolvePreset(config, localSettings.visionPresetId || undefined);
+  const resolved = resolveModel(config, localSettings.tasks.vision.ref);
   if (!resolved) {
-    throw new Error("設定タブでLLM接続先を設定してください。");
+    throw new Error(aiMessages().modelRequired);
   }
 
-  // Stage 2 uses its own preset if one is configured and still resolvable;
-  // otherwise it reuses the Stage-1 resolved target directly (skipping
-  // defaultPresetId) so existing users' behavior is unchanged.
-  const extractResolved = localSettings.extractPresetId
-    ? resolvePreset(config, localSettings.extractPresetId)
-    : null;
-  const extractTarget = extractResolved ?? resolved;
+  const extractTarget = resolveModel(config, localSettings.tasks.extract.ref);
+  if (!extractTarget) throw new Error(aiMessages().modelRequired);
 
   // Stage 1: transcribe only. Vision models are good readers but bad JSON
   // formatters, so this call asks for nothing but plain text.
@@ -341,7 +312,7 @@ export async function scanReceipt(dataUrl: string, options?: ScanReceiptOptions)
   const transcriptRaw = await streamCompletion(
     transcriptionMessages,
     resolved,
-    localSettings.visionReasoningEffort,
+    localSettings.tasks.vision.reasoningEffort,
     options?.signal,
     options?.onDelta,
   );
@@ -370,7 +341,7 @@ export async function scanReceipt(dataUrl: string, options?: ScanReceiptOptions)
   let extractionRaw = await streamCompletion(
     extractionMessages,
     extractTarget,
-    localSettings.extractReasoningEffort,
+    localSettings.tasks.extract.reasoningEffort,
     options?.signal,
     options?.onDelta,
   );
@@ -382,7 +353,7 @@ export async function scanReceipt(dataUrl: string, options?: ScanReceiptOptions)
     extractionRaw = await streamCompletion(
       extractionMessages,
       extractTarget,
-      localSettings.extractReasoningEffort,
+      localSettings.tasks.extract.reasoningEffort,
       options?.signal,
       options?.onDelta,
     );
