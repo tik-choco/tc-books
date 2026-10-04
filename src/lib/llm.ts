@@ -14,7 +14,11 @@ export async function requestChatCompletion(
   if (!target) throw new Error(aiMessages().modelRequired);
   let full = "";
   const content = providerKind(target) === "room"
-    ? await rooms.requestRoomChat(roomIdFromBaseUrl(target.baseUrl), messages, target.model, options?.onDelta)
+    ? await rooms.requestRoomChat(roomIdFromBaseUrl(target.baseUrl), messages, {
+      model: target.model,
+      reasoningEffort: options?.reasoningEffort ?? local.tasks.default.reasoningEffort,
+      onDelta: options?.onDelta,
+    })
     : await streamChatCompletion(
       { ...target, reasoningEffort: options?.reasoningEffort ?? local.tasks.default.reasoningEffort },
       messages,

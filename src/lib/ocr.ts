@@ -178,7 +178,7 @@ export function parseReceiptScan(raw: string, transcript: string): ReceiptScan {
   };
 }
 
-// HTTP streams deltas; room vision uses the buffered OpenAI tunnel.
+// HTTP and room text stream deltas; room vision uses the buffered OpenAI tunnel.
 async function streamCompletion(
   messages: ChatMessage[],
   resolved: ResolvedLlmTargetV1,
@@ -205,15 +205,22 @@ async function streamCompletion(
   try {
     if (providerKind(resolved) === "room") {
       let abort: (() => void) | undefined;
-      const request = rooms.requestRoomOpenAi(roomIdFromBaseUrl(resolved.baseUrl), {
-        path: "/chat/completions", method: "POST", contentType: "application/json",
-        body: JSON.stringify({ ...body, stream: false }),
-      });
+      const roomId = roomIdFromBaseUrl(resolved.baseUrl);
+      const request = messages.every((message): message is ChatMessage & { content: string } => typeof message.content === "string")
+        ? rooms.requestRoomChat(roomId, messages, {
+          model: resolved.model, reasoningEffort,
+          onDelta: onDelta ? (_delta, full) => onDelta(full) : undefined,
+        })
+        : rooms.requestRoomOpenAi(roomId, {
+          path: "/chat/completions", method: "POST", contentType: "application/json",
+          body: JSON.stringify({ ...body, stream: false }),
+        });
       try {
         const result = await Promise.race([request, new Promise<never>((_, reject) => {
           abort = () => reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
           signal?.addEventListener("abort", abort, { once: true });
         })]);
+        if (typeof result === "string") return result;
         response = new Response(result.body, { status: result.status, headers: { "Content-Type": result.contentType } });
       } finally { if (abort) signal?.removeEventListener("abort", abort); }
     } else response = await fetch(`${baseUrl}/chat/completions`, {
