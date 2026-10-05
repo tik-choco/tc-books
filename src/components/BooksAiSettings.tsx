@@ -12,6 +12,7 @@ export function BooksAiSettings({ initialTab = "connection" }: { initialTab?: "c
     initialTab={initialTab}
     locale={locale}
     localSettings={localSettingsAdapter}
+    voice={{ tts: {} }}
     tasks={[
       { id: "default", label: t.defaultTask, tip: t.defaultTip, reasoning: true },
       { id: "vision", label: t.visionTask, tip: t.visionTip, reasoning: true },
